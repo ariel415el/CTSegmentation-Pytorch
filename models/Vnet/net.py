@@ -48,19 +48,19 @@ def _make_nConv(nchan, depth, elu):
 
 
 class InputTransition(nn.Module):
-    def __init__(self, outChans, elu):
+    def __init__(self, inChans, outChans, elu):
         super(InputTransition, self).__init__()
-        self.conv1 = nn.Conv3d(1, 16, kernel_size=5, padding=2)
-        self.bn1 = ContBatchNorm3d(16)
-        self.relu1 = ELUCons(elu, 16)
+        self.conv1 = nn.Conv3d(inChans, outChans, kernel_size=5, padding=2)
+        self.bn1 = ContBatchNorm3d(outChans)
+        self.relu1 = ELUCons(elu, outChans)
 
     def forward(self, x):
         # do we want a PRELU here as well?
         out = self.bn1(self.conv1(x))
         # split input in to 16 channels
-        x16 = torch.cat((x, x, x, x, x, x, x, x,
-                         x, x, x, x, x, x, x, x), 0)
-        out = self.relu1(torch.add(out, x16))
+        # x16 = torch.cat([x, x, x, x, x, x, x, x,
+        #                  x, x, x, x, x, x, x, x], 0)
+        # out = self.relu1(torch.add(out, x16))
         return out
 
 
@@ -100,8 +100,8 @@ class UpTransition(nn.Module):
 
     def forward(self, x, skipx):
         out = self.do1(x)
-        skipxdo = self.do2(skipx)
         out = self.relu1(self.bn1(self.up_conv(out)))
+        skipxdo = self.do2(skipx)
         xcat = torch.cat((out, skipxdo), 1)
         out = self.ops(xcat)
         out = self.relu2(torch.add(out, xcat))
@@ -109,12 +109,13 @@ class UpTransition(nn.Module):
 
 
 class OutputTransition(nn.Module):
-    def __init__(self, inChans, elu, nll):
+    def __init__(self, inChans, n_classes, elu, nll):
         super(OutputTransition, self).__init__()
-        self.conv1 = nn.Conv3d(inChans, 2, kernel_size=5, padding=2)
-        self.bn1 = ContBatchNorm3d(2)
-        self.conv2 = nn.Conv3d(2, 2, kernel_size=1)
-        self.relu1 = ELUCons(elu, 2)
+        self.n_classes = n_classes
+        self.conv1 = nn.Conv3d(inChans, n_classes, kernel_size=5, padding=2)
+        self.bn1 = ContBatchNorm3d(n_classes)
+        self.conv2 = nn.Conv3d(n_classes, n_classes, kernel_size=1)
+        self.relu1 = ELUCons(elu, n_classes)
         if nll:
             self.softmax = F.log_softmax
         else:
@@ -126,10 +127,10 @@ class OutputTransition(nn.Module):
         out = self.conv2(out)
 
         # make channels the last axis
-        out = out.permute(0, 2, 3, 4, 1).contiguous()
+        # out = out.permute(0, 2, 3, 4, 1).contiguous()
         # flatten
-        out = out.view(out.numel() // 2, 2)
-        out = self.softmax(out)
+        # out = out.view(out.numel() // self.n_classes, self.n_classes)
+        # out = self.softmax(out)
         # treat channel 0 as the predicted output
         return out
 
@@ -137,18 +138,18 @@ class OutputTransition(nn.Module):
 class VNet(nn.Module):
     # the number of convolutions in each layer corresponds
     # to what is in the actual prototxt, not the intent
-    def __init__(self, elu=True, nll=False):
+    def __init__(self, n_channels, n_classes, d=16, elu=True, nll=False):
         super(VNet, self).__init__()
-        self.in_tr = InputTransition(16, elu)
-        self.down_tr32 = DownTransition(16, 1, elu)
-        self.down_tr64 = DownTransition(32, 2, elu)
-        self.down_tr128 = DownTransition(64, 3, elu, dropout=True)
-        self.down_tr256 = DownTransition(128, 2, elu, dropout=True)
-        self.up_tr256 = UpTransition(256, 256, 2, elu, dropout=True)
-        self.up_tr128 = UpTransition(256, 128, 2, elu, dropout=True)
-        self.up_tr64 = UpTransition(128, 64, 1, elu)
-        self.up_tr32 = UpTransition(64, 32, 1, elu)
-        self.out_tr = OutputTransition(32, elu, nll)
+        self.in_tr = InputTransition(n_channels, d, elu)
+        self.down_tr32 = DownTransition(d, 1, elu)
+        self.down_tr64 = DownTransition(2*d, 2, elu)
+        self.down_tr128 = DownTransition(4*d, 3, elu, dropout=True)
+        self.down_tr256 = DownTransition(8*d, 2, elu, dropout=True)
+        self.up_tr256 = UpTransition(16*d, 16*d, 2, elu, dropout=True)
+        self.up_tr128 = UpTransition(16*d, 8*d, 2, elu, dropout=True)
+        self.up_tr64 = UpTransition(8*d, 4*d, 1, elu)
+        self.up_tr32 = UpTransition(4*d, 2*d, 1, elu)
+        self.out_tr = OutputTransition(2*d, n_classes, elu, nll)
 
     def forward(self, x):
         out16 = self.in_tr(x)
@@ -164,7 +165,7 @@ class VNet(nn.Module):
         return out
 
 if __name__ == '__main__':
-    n = VNet().cuda()
+    n = VNet(1,3).cuda()
 
 
     def weights_init(m):
@@ -174,4 +175,4 @@ if __name__ == '__main__':
             m.bias.data.zero_()
 
     n.apply(weights_init)
-    print(n(torch.ones(1,1,16,128,128).cuda()).shape)
+    print(n(torch.ones(1, 1, 48, 206, 206).cuda()).shape)

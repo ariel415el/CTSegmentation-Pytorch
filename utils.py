@@ -1,6 +1,5 @@
 import matplotlib.pyplot as plt
 import torch
-from torch.utils.data import random_split, DataLoader
 
 COLORS = [[0,0,0], [255,0,0], [0,0,255]]
 
@@ -31,12 +30,12 @@ def get_3c_grayscale(volume, hu_min=MIN_VAL, hu_max=MAX_VAL):
 
 def class_to_color(segmentation, colors):
     # initialize output to zeros
-    seg_color = torch.zeros(segmentation.shape + (3,))
+    seg_color = torch.zeros(segmentation.shape + (3,), device=segmentation.device)
 
     # set output to appropriate color at each location
     for i, c in enumerate(colors):
         if i > 0:
-            seg_color[segmentation == i] = torch.tensor(c, dtype=seg_color.dtype)
+            seg_color[segmentation == i] = torch.tensor(c, dtype=seg_color.dtype, device=seg_color.device)
     return seg_color
 
 
@@ -59,13 +58,3 @@ def overlay(ct_volume, label_volume, alpha=0.3):
     return overlayed
 
 
-def get_dataloaders(dataset, val_perc, batch_size):
-    n_val = int(len(dataset) * val_perc)
-    n_train = len(dataset) - n_val
-    train_set, val_set = random_split(dataset, [n_train, n_val], generator=torch.Generator().manual_seed(0))
-
-    loader_args = dict(batch_size=batch_size, num_workers=0, pin_memory=False)
-    train_loader = DataLoader(train_set, shuffle=True, **loader_args)
-    val_loader = DataLoader(val_set, shuffle=False, drop_last=True, **loader_args)
-
-    return train_loader, val_loader

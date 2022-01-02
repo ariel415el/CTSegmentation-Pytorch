@@ -1,18 +1,17 @@
 import torch
-
-from datasets.slice_dataset import SlicesDataset, VolumeDataset
 from models.Unet.model import UnetModel
+from models.Vnet.model import VnetModel
 
 if __name__ == '__main__':
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     # device = torch.device('cpu')
 
-    # dataset = SlicesDataset('datasets/processed-data-(0.5,2)')
-    dataset = VolumeDataset('datasets/processed-data-(0.5,2)')
+    data_path = 'datasets/processed-data-(0.5,2)'
 
-    model = UnetModel(n_channels=1, n_classes=3, bilinear=True)
+    # model = UnetModel(n_channels=1, n_classes=3, bilinear=True)
+    model = VnetModel(n_channels=1, n_classes=3)
 
-    model.train(dataset, device)
+    model.train(data_path, device, epochs=20)
 
 
 
