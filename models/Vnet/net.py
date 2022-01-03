@@ -57,10 +57,7 @@ class InputTransition(nn.Module):
     def forward(self, x):
         # do we want a PRELU here as well?
         out = self.bn1(self.conv1(x))
-        # split input in to 16 channels
-        # x16 = torch.cat([x, x, x, x, x, x, x, x,
-        #                  x, x, x, x, x, x, x, x], 0)
-        # out = self.relu1(torch.add(out, x16))
+
         return out
 
 
@@ -151,16 +148,16 @@ class VNet(nn.Module):
         self.up_tr32 = UpTransition(4*d, 2*d, 1, elu)
         self.out_tr = OutputTransition(2*d, n_classes, elu, nll)
 
-    def forward(self, x):
-        out16 = self.in_tr(x)
-        out32 = self.down_tr32(out16)
-        out64 = self.down_tr64(out32)
-        out128 = self.down_tr128(out64)
-        out256 = self.down_tr256(out128)
-        out = self.up_tr256(out256, out128)
-        out = self.up_tr128(out, out64)
-        out = self.up_tr64(out, out32)
-        out = self.up_tr32(out, out16)
+    def forward(self, x): # x.shape = (b, slices, H, W)
+        out16 = self.in_tr(x.unsqueeze(1))  # (b, d, s, H, W)
+        out32 = self.down_tr32(out16)  # (b, 2*d, s/2, H/2, W/2)
+        out64 = self.down_tr64(out32)  # (b, 4*d, s/4, H/4, W/4)
+        out128 = self.down_tr128(out64)  # (b, 8*d, s/8, H/8, W/8)
+        out256 = self.down_tr256(out128)  # (b, 16*d, s/16, H/16, W/16)
+        out = self.up_tr256(out256, out128)  # (b, 16*d, s/8, H/8, W/8)
+        out = self.up_tr128(out, out64)  # (b, 8*d, s/4, H/4, W/4)
+        out = self.up_tr64(out, out32)  # (b, 4*d, s/2, H/2, W/2)
+        out = self.up_tr32(out, out16)  # (b, 2*d, s, H, W)
         out = self.out_tr(out)
         return out
 

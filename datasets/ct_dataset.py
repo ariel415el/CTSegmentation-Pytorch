@@ -16,24 +16,23 @@ def read_volume(path):
 
     return volume
 
-def get_transforms(volume_training):
-    train_transforms = []
-    if volume_training:
-        train_transforms.append(augmentations.SliceVolume(slice_size=48))
-    train_transforms += [
+
+def get_transforms(slice_size, resize=128):
+    train_transforms = [
+        augmentations.SliceVolume(slice_size=slice_size),
         augmentations.RandomCrop(),
-        augmentations.Resize(128),
+        augmentations.Resize(resize),
         augmentations.ToTensor()
     ]
 
     val_transforms = [
-        augmentations.Resize(128),
+        augmentations.Resize(resize),
         augmentations.ToTensor()
     ]
     return transforms.Compose(train_transforms), transforms.Compose(val_transforms)
 
 
-def get_datasets(data_root, val_perc, train_by_volume):
+def get_datasets(data_root, val_perc, slice_size, resize):
     ct_files = sorted(os.listdir(os.path.join(data_root, 'ct')))
     ct_files = [os.path.join(data_root, 'ct', x) for x in ct_files]
     segmentation_files = sorted(os.listdir(os.path.join(data_root, 'seg')))
@@ -43,42 +42,39 @@ def get_datasets(data_root, val_perc, train_by_volume):
     random.shuffle(data_paths)
     n_val = int(len(data_paths) * val_perc)
 
-    train_transforms, val_transforms = get_transforms(train_by_volume)
-    tarin_set = CTDataset(data_paths[n_val:], by_volume=train_by_volume, transforms=train_transforms)
-    val_set = CTDataset(data_paths[:n_val], by_volume=True, transforms=val_transforms)
+    train_transforms, val_transforms = get_transforms(slice_size, resize)
+    tarin_set = CTDataset(data_paths[n_val:], transforms=train_transforms)
+    val_set = CTDataset(data_paths[:n_val], transforms=val_transforms)
 
     return tarin_set, val_set
 
 
-def get_dataloaders(data_root, val_perc, batch_size, train_by_volume):
+def get_dataloaders(data_root, val_perc, batch_size, slice_size=1, resize=128):
     """
     Get dataloaders for training and evaluation.
     train_by_volume: 3d/2d training returns full CT volumes (batch_size, slices, H, W) or (batch_size, H, W)
     """
-    train_set, val_set = get_datasets(data_root, val_perc, train_by_volume)
+    train_set, val_set = get_datasets(data_root, val_perc, slice_size, resize)
 
-    loader_args = dict(batch_size=batch_size, num_workers=4, pin_memory=False)
-    val_loader = DataLoader(val_set, shuffle=True, drop_last=False, **loader_args)
+    loader_args = dict(batch_size=batch_size, num_workers=0, pin_memory=False)
+    val_loader = DataLoader(val_set, shuffle=True, **loader_args)
     train_loader = DataLoader(train_set, shuffle=True, **loader_args)
 
     return train_loader, val_loader
 
 
 class CTDataset(Dataset):
-    def __init__(self, data_paths, by_volume, transforms=None):
+    def __init__(self, data_paths, transforms=None):
         self.transforms = transforms
         self.cts = []
         self.segs = []
+        n_slices = 0
         for ct_path, seg_path in data_paths:
             self.cts.append(read_volume(ct_path) / 255)
             self.segs.append(read_volume(seg_path))
+            n_slices += self.cts[-1].shape[-3]
 
-        if by_volume:
-            print(f"Done loading {len(self.cts)} volumes")
-        else:
-            self.cts = np.concatenate(self.cts)
-            self.segs = np.concatenate(self.segs)
-            print(f"Done loading {len(self.cts)} slices")
+        print(f"Done loading {n_slices} slices in {len(self.cts)} volumes")
 
     def __len__(self):
         return len(self.cts)
