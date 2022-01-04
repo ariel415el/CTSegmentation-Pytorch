@@ -102,7 +102,7 @@ if __name__ == '__main__':
     for tsfrm in tsfrms:
         tsfrm.transforms.append(augmentations.ToTensor())
 
-    train_loader, val_loader = get_dataloaders('../datasets/processed-data-(0.5,2)', 0.1, 1)
+    train_loader, val_loader = get_dataloaders('../datasets/Cropped_Tumoers_Dataset-(2)', 0.1, 1)
 
     # Apply each of the above transforms on sample.
     train_loader.dataset.transforms = None
