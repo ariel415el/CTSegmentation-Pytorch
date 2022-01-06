@@ -1,5 +1,5 @@
 import torch
-from torch import nn
+from torch import nn, optim
 from models.Unet.net import UNet
 from dice_score import compute_segmentation_loss
 
@@ -15,14 +15,33 @@ def SliceLoss(preds, gts):
 
 
 class UnetModel:
-    def __init__(self, n_channels, n_classes, bilinear=True):
-        self.net = UNet(n_channels, n_classes, bilinear=bilinear)
+    def __init__(self, n_channels, n_classes, bilinear=True, lr=0.001, device=torch.device('cpu')):
+        self.n_classes = n_classes
+        self.net = UNet(n_channels, n_classes, bilinear=bilinear).to(device)
+        self.optimizer = optim.RMSprop(self.net.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
+        self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'max', patience=2)  # goal: maximize val Dice score
+
+    def train_one_sample(self, ct_volume, gt_volume, global_step):
+        self.net.train()
+        pred = self.net(ct_volume)
+
+        loss = SliceLoss(pred, gt_volume)
+
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+
+        return loss.item()
+
+    def step_scheduler(self, evaluation_score):
+        self.scheduler.step(evaluation_score)
 
     def predict_volume(self, ct_volume):
         """
         ct_volume.shape = (b, slices, H, W)
         returns prdiction of shape (b, n_classes, slices, H, W)
         """
+        self.net.eval()
         pred_volume = []
         with torch.no_grad():
             for i in range(ct_volume.shape[1]):
@@ -31,4 +50,12 @@ class UnetModel:
         pred_volume = torch.stack(pred_volume, dim=2)
         return pred_volume
 
+    def get_state_dict(self):
+        return {
+            'net': self.net.state_dict(),
+            'optimizer': self.optimizer.state_dict(),
+        }
 
+    def load_state_dict(self, state_dict):
+        self.net.load_state_dict(state_dict['net'])
+        self.optimizer.load_state_dict(state_dict['optimizer'])

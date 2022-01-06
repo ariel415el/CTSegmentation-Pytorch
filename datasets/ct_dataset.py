@@ -11,9 +11,11 @@ from datasets import augmentations
 
 
 def read_volume(path):
-    volume = sitk.ReadImage(path, sitk.sitkInt16)
-    volume = sitk.GetArrayFromImage(volume)
-
+    if path.endswith("nii"):
+        volume = sitk.ReadImage(path, sitk.sitkInt16)
+        volume = sitk.GetArrayFromImage(volume)
+    else:
+        volume = np.load(path)
     return volume
 
 
@@ -68,13 +70,20 @@ class CTDataset(Dataset):
         self.transforms = transforms
         self.cts = []
         self.segs = []
+        self.case_names = []
         n_slices = 0
+        n_dropped_volumes = 0
         for ct_path, seg_path in data_paths:
-            self.cts.append(read_volume(ct_path) / 255)
-            self.segs.append(read_volume(seg_path))
-            n_slices += self.cts[-1].shape[-3]
+            label_map = read_volume(seg_path)
+            if label_map.shape[0] > 16:
+                self.segs.append(label_map)
+                self.cts.append(read_volume(ct_path) / 255)
+                self.case_names.append(os.path.splitext(os.path.basename(ct_path)))
+                n_slices += self.cts[-1].shape[-3]
+            else:
+                n_dropped_volumes += 1
 
-        print(f"Done loading {n_slices} slices in {len(self.cts)} volumes")
+        print(f"Done loading {n_slices} slices in {len(self.cts)} volumes, {n_dropped_volumes} volumes dropped")
 
     def __len__(self):
         return len(self.cts)
