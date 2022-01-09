@@ -6,7 +6,7 @@ from torchvision.utils import save_image
 
 import torch
 
-from dice_score import compute_segmentation_score, compute_segmentation_loss
+from losses import compute_segmentation_score, TverskyScore
 from utils import overlay
 
 
@@ -22,7 +22,7 @@ def evaluate(model, dataloader, device, outputs_dir, n_plotted_volumes=2):
         gt_volume = gt_volume.to(device=device, dtype=torch.long)
         pred_volume = model.predict_volume(ct_volume)
 
-        score = compute_segmentation_score(pred_volume, gt_volume.unsqueeze(1).long())
+        score = compute_segmentation_score(pred_volume, gt_volume.unsqueeze(1).long(), TverskyScore(0.5, 0.5))
         total_score += score
 
         if b_idx < n_plotted_volumes:
@@ -52,8 +52,8 @@ def test(model, dataloader, device, outputs_dir):
         pred_volume = model.predict_volume(ct_volume.to(device).float()).cpu()
         pred_times.append(ct_volume.shape[-3] / (time() - start))
 
-        volume_score = compute_segmentation_score(pred_volume, gt_volume.unsqueeze(1).long())
-        volume_loss = compute_segmentation_loss(pred_volume, gt_volume.unsqueeze(1).long())
+        volume_score = compute_segmentation_score(pred_volume, gt_volume.unsqueeze(1).long(), TverskyScore(0.5, 0.5))
+        volume_loss = compute_segmentation_loss(pred_volume, gt_volume.unsqueeze(1).long(), TverskyScore(0.5, 0.5))
         volume_dir = f"{outputs_dir}/{b_idx}-Score-{volume_score:.3f}-Loss{volume_loss:.3f}"
         os.makedirs(volume_dir, exist_ok=True)
         volume_scores.append(volume_score)
@@ -65,8 +65,10 @@ def test(model, dataloader, device, outputs_dir):
             img = torch.cat([raw, gt_vis, pred_vis], dim=-1)
 
             for s in range(ct_volume.shape[-3]):
-                slice_score = compute_segmentation_score(pred_volume[...,s, :, :].unsqueeze(-3), gt_volume[...,s, :, :].unsqueeze(-3).unsqueeze(1).long())
-                slice_loss = compute_segmentation_loss(pred_volume[...,s, :, :].unsqueeze(-3), gt_volume[...,s, :, :].unsqueeze(-3).unsqueeze(1).long())
+                pred_slice = pred_volume[...,s, :, :].unsqueeze(-3)
+                gt_slice = gt_volume[...,s, :, :].unsqueeze(-3).unsqueeze(1).long()
+                slice_score = compute_segmentation_score(pred_slice, gt_slice, TverskyScore(0.5, 0.5))
+                slice_loss = compute_segmentation_loss(pred_slice, gt_slice, TverskyScore(0.5, 0.5))
                 save_image(img[s], f"{volume_dir}/{i}-{s}_Score{slice_score:.3f}_Loss{slice_loss:.3f}.png", normalize=True)
 
     model.train()

@@ -28,7 +28,7 @@ if __name__ == '__main__':
 
     if train_method == 'Unet':
         model = UnetModel(n_channels=1, n_classes=3, bilinear=True, device=device)
-        batch_size = 8
+        batch_size = 32
         slice_size = 1
         train_steps = 50000
     elif train_method == 'AdSeg':

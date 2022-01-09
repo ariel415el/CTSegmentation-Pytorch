@@ -44,7 +44,7 @@ def train_model(model,  dataloaders, device, train_steps, train_dir):
             losses = model.train_one_sample(ct_volume, gt_volume, global_step)
             loss_plotter.plot(losses)
 
-            pbar.update(ct_volume.shape[-3])
+            pbar.update(ct_volume.shape[0] * ct_volume.shape[-3])
             pbar.set_description(f"GS: {global_step}/{train_steps}, Loss: {losses}")
 
             # Evaluation round

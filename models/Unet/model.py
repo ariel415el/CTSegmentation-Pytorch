@@ -1,17 +1,17 @@
 import torch
 from torch import nn, optim
 from models.Unet.net import UNet
-from dice_score import compute_segmentation_loss
+from losses import compute_segmentation_loss, TverskyScore
 from models.generic_model import SegmentationModel
 
 
 def SliceLoss(preds, gts):
     """
-    :param preds: float array of shape (1, n_class, H, W) contating class logits
-    :param gts: uint8 array of shape (1, 1, H, W) containing segmentation labels
+    :param preds: float array of shape (b, n_class, H, W) contating class logits
+    :param gts: uint8 array of shape (b, 1, H, W) containing segmentation labels
     """
     ce_loss = nn.CrossEntropyLoss()(preds, gts[:,0])
-    dice_loss = compute_segmentation_loss(preds, gts.unsqueeze(1))
+    dice_loss = compute_segmentation_loss(preds.unsqueeze(2), gts.unsqueeze(1), TverskyScore(0.5, 0.5))
     return ce_loss + dice_loss
 
 

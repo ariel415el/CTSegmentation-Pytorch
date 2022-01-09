@@ -1,7 +1,7 @@
 import torch
 
 from models.Vnet.net import VNet
-from dice_score import compute_segmentation_loss
+from losses import compute_segmentation_loss, TverskyScore
 from torch import optim
 
 from models.generic_model import SegmentationModel
@@ -12,7 +12,7 @@ def VolumeLoss(preds, gts):
     :param preds: float array of shape (1, n_class, slices, H, W) contating class logits
     :param gts: uint8 array of shape (1, slices, H, W) containing segmentation labels
     """
-    dice_loss = compute_segmentation_loss(preds, gts.unsqueeze(1))
+    dice_loss = compute_segmentation_loss(preds, gts.unsqueeze(1), TverskyScore(0.5, 0.5))
     return dice_loss
 
 

@@ -58,8 +58,9 @@ def get_dataloaders(data_root, val_perc, params, slice_size=1, resize=128):
     """
     train_set, val_set = get_datasets(data_root, val_perc, slice_size, resize)
 
-    val_loader = DataLoader(val_set, shuffle=True, **params)
     train_loader = DataLoader(train_set, shuffle=True, **params)
+    params['batch_size'] = 1
+    val_loader = DataLoader(val_set, shuffle=True, **params)
 
     return train_loader, val_loader
 

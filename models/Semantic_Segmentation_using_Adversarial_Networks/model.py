@@ -3,7 +3,7 @@ import torch
 
 from models.Semantic_Segmentation_using_Adversarial_Networks.segmentor import fcn32s
 from models.Semantic_Segmentation_using_Adversarial_Networks.discriminator import StanfordBNet
-from dice_score import compute_segmentation_loss
+from losses import compute_segmentation_loss, TverskyScore
 from torch import optim
 import torch.nn.functional as F
 
@@ -15,7 +15,7 @@ def VolumeLoss(preds, gts):
     :param preds: float array of shape (1, n_class, slices, H, W) contating class logits
     :param gts: uint8 array of shape (1, slices, H, W) containing segmentation labels
     """
-    dice_loss = compute_segmentation_loss(preds, gts.unsqueeze(1))
+    dice_loss = compute_segmentation_loss(preds, gts.unsqueeze(1), TverskyScore(0.5, 0.5))
     return dice_loss
 
 
