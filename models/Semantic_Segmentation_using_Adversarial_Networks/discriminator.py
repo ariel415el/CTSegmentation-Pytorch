@@ -49,7 +49,7 @@ class LargeFOV(nn.Module):
     The second architecture desecribed in the paper "Semantic Segmentation using Adversarial Networks"
     """
 
-    def __init__(self, n_class=21):
+    def __init__(self, n_class=3):
         super(LargeFOV, self).__init__()
         self.conv1_1 = nn.Conv2d(n_class, 96, 3, stride=1, padding=1)
         self.conv1_2 = nn.Conv2d(96, 128, 3, stride=1, padding=1)
@@ -59,7 +59,8 @@ class LargeFOV(nn.Module):
         self.conv3_1 = nn.Conv2d(256, 512, 3, stride=1, padding=1)
         self.conv3_2 = nn.Conv2d(512, 1, 3, stride=1, padding=1)
 
-    def forward(self, x):
+    def forward(self, segmented_input, original_input):
+        x = segmented_input * original_input
         res = F.relu(self.conv1_1(x))
         res = F.relu(self.conv1_2(res))
         res = F.relu(self.conv1_3(res))

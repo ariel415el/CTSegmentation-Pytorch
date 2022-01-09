@@ -11,7 +11,7 @@ from utils import overlay
 
 
 def evaluate(model, dataloader, device, outputs_dir, n_plotted_volumes=2):
-    model.net.eval()
+    model.eval()
 
     os.makedirs(outputs_dir, exist_ok=True)
 
@@ -35,13 +35,12 @@ def evaluate(model, dataloader, device, outputs_dir, n_plotted_volumes=2):
                     save_image(img, os.path.join(outputs_dir, f"{b_idx}-{i}-{s}_Score-{score:.3f}.png"), normalize=True)
 
     # Fixes a potential division by zero error
-    model.net.train()
+    model.train()
     return total_score / len(dataloader)
 
 
 def test(model, dataloader, device, outputs_dir):
-    model.net = model.net.to(device)
-    model.net.eval()
+    model.eval()
 
     os.makedirs(outputs_dir, exist_ok=True)
 
@@ -70,7 +69,7 @@ def test(model, dataloader, device, outputs_dir):
                 slice_loss = compute_segmentation_loss(pred_volume[...,s, :, :].unsqueeze(-3), gt_volume[...,s, :, :].unsqueeze(-3).unsqueeze(1).long())
                 save_image(img[s], f"{volume_dir}/{i}-{s}_Score{slice_score:.3f}_Loss{slice_loss:.3f}.png", normalize=True)
 
-    model.net.train()
+    model.train()
 
     return np.mean(volume_scores), np.mean(pred_times)
     # Fixes a potential division by zero error

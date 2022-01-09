@@ -58,6 +58,8 @@ class fcn32s(nn.Module):
             nn.Conv2d(4096, self.n_classes, 1),
             nn.Sigmoid(),)
 
+        self.init_vgg16_params()
+
     def forward(self, x):
         # import pudb;pu.db
 

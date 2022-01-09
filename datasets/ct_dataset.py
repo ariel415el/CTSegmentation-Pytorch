@@ -45,22 +45,21 @@ def get_datasets(data_root, val_perc, slice_size, resize):
     n_val = int(len(data_paths) * val_perc)
 
     train_transforms, val_transforms = get_transforms(slice_size, resize)
-    tarin_set = CTDataset(data_paths[n_val:], transforms=train_transforms)
+    tarin_set = CTDataset(data_paths[n_val + 25:], transforms=train_transforms)
     val_set = CTDataset(data_paths[:n_val], transforms=val_transforms)
 
     return tarin_set, val_set
 
 
-def get_dataloaders(data_root, val_perc, batch_size, slice_size=1, resize=128):
+def get_dataloaders(data_root, val_perc, params, slice_size=1, resize=128):
     """
     Get dataloaders for training and evaluation.
     train_by_volume: 3d/2d training returns full CT volumes (batch_size, slices, H, W) or (batch_size, H, W)
     """
     train_set, val_set = get_datasets(data_root, val_perc, slice_size, resize)
 
-    loader_args = dict(batch_size=batch_size, num_workers=0, pin_memory=False)
-    val_loader = DataLoader(val_set, shuffle=True, **loader_args)
-    train_loader = DataLoader(train_set, shuffle=True, **loader_args)
+    val_loader = DataLoader(val_set, shuffle=True, **params)
+    train_loader = DataLoader(train_set, shuffle=True, **params)
 
     return train_loader, val_loader
 
@@ -75,7 +74,7 @@ class CTDataset(Dataset):
         n_dropped_volumes = 0
         for ct_path, seg_path in data_paths:
             label_map = read_volume(seg_path)
-            if label_map.shape[0] > 16:
+            if label_map.shape[0] >= 16:
                 self.segs.append(label_map)
                 self.cts.append(read_volume(ct_path) / 255)
                 self.case_names.append(os.path.splitext(os.path.basename(ct_path)))
@@ -94,41 +93,3 @@ class CTDataset(Dataset):
             sample = self.transforms(sample)
 
         return sample
-
-
-if __name__ == '__main__':
-    from matplotlib import pyplot as plt
-    from utils import overlay
-    torch.manual_seed(1)
-    # Test train data
-    tsfrms = [
-        transforms.Compose([]),
-        transforms.Compose([augmentations.RandomCrop(p=1)]),
-        transforms.Compose([augmentations.Rescale(p=1)]),
-        transforms.Compose([augmentations.RandomCrop(p=1), augmentations.Rescale(p=1)])
-    ]
-
-    for tsfrm in tsfrms:
-        tsfrm.transforms.append(augmentations.ToTensor())
-
-    train_loader, val_loader = get_dataloaders('../datasets/Cropped_Tumoers_Dataset-(2)', 0.1, 1)
-
-    # Apply each of the above transforms on sample.
-    train_loader.dataset.transforms = None
-    fig = plt.figure()
-    for k in range(200, len(train_loader.dataset), 50):
-        for i, tsfrm in enumerate(tsfrms):
-            sample = train_loader.dataset[k]
-            sample = sample[0], sample[1]
-
-            transformed_sample = tsfrm(sample)
-            transformed_sample = transformed_sample[0].unsqueeze(0), transformed_sample[1].unsqueeze(0)
-            visulized_sample = overlay(*transformed_sample)
-            visulized_sample = visulized_sample[0].numpy().transpose(1,2,0).astype(np.uint8)
-            ax = plt.subplot(2, 2, i + 1)
-            plt.tight_layout()
-            ax.set_title(type(tsfrm).__name__)
-
-            ax.imshow(visulized_sample)
-
-        plt.show()

@@ -1,51 +1,36 @@
-import numpy as np
 import torch
 
-from models.Semantic_Segmentation_using_Adversarial_Networks.segmentor import fcn32s
-from models.Semantic_Segmentation_using_Adversarial_Networks.discriminator import StanfordBNet
-from dice_score import compute_segmentation_loss
+from models.Adversarial_Learning_For_Semi_Supervised_Semantic_Segmentation.discriminator import Dis
+from models.Adversarial_Learning_For_Semi_Supervised_Semantic_Segmentation.segmentor import ResDeeplab
 from torch import optim
 import torch.nn.functional as F
 
 from models.generic_model import SegmentationModel
 
 
-def VolumeLoss(preds, gts):
-    """
-    :param preds: float array of shape (1, n_class, slices, H, W) contating class logits
-    :param gts: uint8 array of shape (1, slices, H, W) containing segmentation labels
-    """
-    dice_loss = compute_segmentation_loss(preds, gts.unsqueeze(1))
-    return dice_loss
-
-
-
-class AdSegModel(SegmentationModel):
+class AdverserialSegSemi(SegmentationModel):
     def __init__(self, n_channels, n_classes, device=torch.device('cpu')):
-        self.n_classes = n_classes
-        self.segmentor = fcn32s(n_channels, n_classes).to(device)
-        self.discriminator = StanfordBNet(n_channels, n_classes).to(device)
+        super(AdverserialSegSemi, self).__init__(n_channels, n_classes, device)
+        self.segmentor = ResDeeplab(n_channels, n_classes).to(device)
+        self.discriminator = Dis(n_classes).to(device)
         self.discriminator.train()
-        self.s_optimizer = optim.Adam(self.segmentor.parameters(), lr=0.00001)
-        self.d_optimizer = optim.Adam(self.discriminator.parameters(), lr=0.00001)
+        self.s_optimizer = optim.Adam(self.segmentor.parameters(), lr=0.0001)
+        self.d_optimizer = optim.Adam(self.discriminator.parameters(), lr=0.00025)
         self.bce_loss = torch.nn.BCELoss(reduction='sum')
         self.ce_loss = torch.nn.CrossEntropyLoss()
-        # self.d_steps = d_steps
 
     def _discriminator_loss(self, d_out_on_gt, d_out_on_pred):
-        batch_size = d_out_on_gt.shape[0]
         device = d_out_on_gt.device
-        zeros = torch.zeros(batch_size, requires_grad=False).to(device)
-        ones = torch.ones(batch_size, requires_grad=False).to(device)
+        zeros = torch.zeros_like(d_out_on_pred, requires_grad=False).to(device)
+        ones = torch.ones_like(d_out_on_gt, requires_grad=False).to(device)
         gt_loss = self.bce_loss(d_out_on_gt, ones)
         pred_loss = self.bce_loss(d_out_on_pred, zeros)
 
         return gt_loss, pred_loss
 
     def _segmentor_adverserial_loss(self, d_out_on_pred):
-        batch_size = d_out_on_pred.shape[0]
         device = d_out_on_pred.device
-        ones = torch.ones(batch_size, requires_grad=False).to(device)
+        ones = torch.ones_like(d_out_on_pred, requires_grad=False).to(device)
         adverserial_loss = self.bce_loss(d_out_on_pred, ones)
 
         return adverserial_loss
@@ -57,9 +42,9 @@ class AdSegModel(SegmentationModel):
         self.d_optimizer.zero_grad()
 
         pred_volume = self.segmentor(ct_volume)
-        d_outputs_pred = self.discriminator(pred_volume.detach(), ct_volume)
+        d_outputs_pred = self.discriminator(pred_volume.detach())
         gt_one_hot = F.one_hot(gt_volume[:, 0], 3).permute(0, 3, 1, 2).float()
-        d_outputs_gt = self.discriminator(gt_one_hot, ct_volume)
+        d_outputs_gt = self.discriminator(gt_one_hot)
 
         d_loss_gt, d_loss_pred = self._discriminator_loss(d_outputs_gt, d_outputs_pred)
         d_loss_gt.backward()
@@ -72,16 +57,15 @@ class AdSegModel(SegmentationModel):
         self.s_optimizer.zero_grad()
 
         ce_loss = self.ce_loss(pred_volume, gt_volume[:, 0])
-        d_outputs_pred = self.discriminator(pred_volume, ct_volume) # Can we avoid repeated inference here?
+        d_outputs_pred = self.discriminator(pred_volume) # Can we avoid repeated inference here?
         adverserial_loss = self._segmentor_adverserial_loss(d_outputs_pred)
-        g_loss = ce_loss + 0.65 * adverserial_loss
+        g_loss = ce_loss + 0.01 * adverserial_loss
         g_loss.backward()
 
         self.s_optimizer.step()
 
         return {"ce_loss": ce_loss.item(), 'G_adv_loss':adverserial_loss.item(),
                 "d_loss_gt": d_loss_gt.item(), "d_loss_pred": d_loss_pred.item()}
-
 
     def step_scheduler(self, evaluation_score):
         pass

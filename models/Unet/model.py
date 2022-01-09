@@ -2,6 +2,7 @@ import torch
 from torch import nn, optim
 from models.Unet.net import UNet
 from dice_score import compute_segmentation_loss
+from models.generic_model import SegmentationModel
 
 
 def SliceLoss(preds, gts):
@@ -14,11 +15,11 @@ def SliceLoss(preds, gts):
     return ce_loss + dice_loss
 
 
-class UnetModel:
-    def __init__(self, n_channels, n_classes, bilinear=True, lr=0.001, device=torch.device('cpu')):
-        self.n_classes = n_classes
+class UnetModel(SegmentationModel):
+    def __init__(self, n_channels, n_classes, bilinear=True, device=torch.device('cpu')):
+        super(UnetModel, self).__init__(n_channels, n_classes, device)
         self.net = UNet(n_channels, n_classes, bilinear=bilinear).to(device)
-        self.optimizer = optim.RMSprop(self.net.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
+        self.optimizer = optim.RMSprop(self.net.parameters(), lr=0.0000001, weight_decay=1e-8, momentum=0.9)
         self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'max', patience=2)  # goal: maximize val Dice score
 
     def train_one_sample(self, ct_volume, gt_volume, global_step):
@@ -31,7 +32,7 @@ class UnetModel:
         loss.backward()
         self.optimizer.step()
 
-        return loss.item()
+        return {"Dice_loss": loss.item()}
 
     def step_scheduler(self, evaluation_score):
         self.scheduler.step(evaluation_score)
@@ -59,3 +60,9 @@ class UnetModel:
     def load_state_dict(self, state_dict):
         self.net.load_state_dict(state_dict['net'])
         self.optimizer.load_state_dict(state_dict['optimizer'])
+
+    def train(self):
+        self.net.train()
+
+    def eval(self):
+        self.net.eval()

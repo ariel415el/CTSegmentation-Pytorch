@@ -13,7 +13,7 @@ IMG_MAX_VAL = 512
 def create_normal_dataset(root_dir, spatial_subsample, slice_size_mm=2, expand_slice=20, min_depth=48):
     """Downsample spacialy and normalize to have same number of equaly spaced slices"""
 
-    processed_dir = f"processed-data-({spatial_subsample},{slice_size_mm})"
+    processed_dir = f"Full-Torso-({spatial_subsample},{slice_size_mm})"
     new_ct_path = os.path.join(processed_dir, 'ct')
     new_seg_dir = os.path.join(processed_dir, 'seg')
 
@@ -144,4 +144,5 @@ def create_tumor_dataset(root_dir, relevant_label, slice_size_mm=2, min_sizes=(4
 if __name__ == '__main__':
     raw_data = '/home/ariel/projects/MedicalImageSegmentation/data/LiverTumorSegmentation/raw_data'
     # create_tumor_dataset(raw_data, relevant_label=2)
-    create_tumor_dataset(raw_data, relevant_label=1, slice_margins=[1, 0, 0], allowed_perc_other_blobs=1)
+    create_normal_dataset(raw_data, spatial_subsample=0.5, slice_size_mm=2, expand_slice=5, min_depth=16)
+    # create_tumor_dataset(raw_data, relevant_label=1, slice_margins=[1, 0, 0], allowed_perc_other_blobs=1)
