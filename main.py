@@ -6,20 +6,17 @@ import torch
 
 from datasets.ct_dataset import get_dataloaders
 from evaluate import test
+from models.VGan.model import VGanModel
 from train import train_model
 
-from models.Unet.model import UnetModel
-from models.Vnet.model import VnetModel
-from models.Adversarial_Learning_For_Semi_Supervised_Semantic_Segmentation.model import AdverserialSegSemi
-from models.Semantic_Segmentation_using_Adversarial_Networks.model import AdSegModel
-
+import models
 
 if __name__ == '__main__':
     random.seed(0)
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     # device = torch.device('cpu')
 
-    train_method = 'Unet'
+    train_method = 'VGan'
     data_path = 'datasets/Cropped_Tumoers_Dataset-(L-1_mm-2)'
     resize = 128
     train_dir = f"train_dir/Liver-Data_{train_method}-{resize}"
@@ -27,17 +24,22 @@ if __name__ == '__main__':
     mode = "train"
 
     if train_method == 'Unet':
-        model = UnetModel(n_channels=1, n_classes=3, bilinear=True, device=device)
+        model = models.UnetModel(n_channels=1, n_classes=3, bilinear=True, device=device)
         batch_size = 32
         slice_size = 1
         train_steps = 50000
     elif train_method == 'AdSeg':
-        model = AdSegModel(n_channels=1, n_classes=3, device=device)
+        model = models.AdSegModel(n_channels=1, n_classes=3, device=device)
         batch_size = 1
         slice_size = 1
         train_steps = 100000
     elif train_method == 'adSeg-semi':
-        model = AdverserialSegSemi(n_channels=1, n_classes=3, device=device)
+        model = models.AdverserialSegSemi(n_channels=1, n_classes=3, device=device)
+        batch_size = 1
+        slice_size = 1
+        train_steps = 100000
+    elif train_method == 'VGan':
+        model = models.VGanModel(n_channels=1, n_classes=3, device=device)
         batch_size = 1
         slice_size = 1
         train_steps = 100000
@@ -45,7 +47,7 @@ if __name__ == '__main__':
         batch_size = 1
         slice_size = 16
         train_steps = 10000
-        model = VnetModel(n_channels=batch_size, n_classes=3, slice_size=slice_size, device=device)
+        model = models.VnetModel(n_channels=batch_size, n_classes=3, slice_size=slice_size, device=device)
     else:
         raise Exception("No such train method")
 

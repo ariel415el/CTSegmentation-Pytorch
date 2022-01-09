@@ -74,7 +74,7 @@ class VGanGenerator(nn.Module):
 
 
 class VGanDiscriminator(nn.Module):
-    def __init__(self, n_channels, n_classes, n_filters=32):
+    def __init__(self, n_channels, n_filters=32):
         super(VGanDiscriminator, self).__init__()
         self.down1 = nn.Sequential(
             block(n_channels, n_filters),
@@ -95,7 +95,7 @@ class VGanDiscriminator(nn.Module):
         self.down5 = nn.Sequential(
             block(8 * n_filters, 16 * n_filters),
             block(16 * n_filters, 16 * n_filters))
-        self.out = nn.Linear(16 * n_filters, n_classes)
+        self.out = nn.Linear(16 * n_filters, 1)
 
     def forward(self, x):
         x = self.down1(x)

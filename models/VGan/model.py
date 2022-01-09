@@ -1,39 +1,43 @@
 import torch
 
-from models.Adversarial_Learning_For_Semi_Supervised_Semantic_Segmentation.discriminator import Dis
-from models.Adversarial_Learning_For_Semi_Supervised_Semantic_Segmentation.segmentor import ResDeeplab
 from torch import optim
 import torch.nn.functional as F
+from torch.autograd import grad
 
+from models.VGan.networks import VGanDiscriminator
+from models.VGan.networks import VGanGenerator
 from models.generic_model import SegmentationModel
 
 
 class VGanModel(SegmentationModel):
     def __init__(self, n_channels, n_classes, device=torch.device('cpu')):
         super(VGanModel, self).__init__(n_channels, n_classes, device)
-        self.segmentor = ResDeeplab(n_channels, n_classes).to(device)
-        self.discriminator = Dis(n_classes).to(device)
+        self.segmentor = VGanGenerator(n_channels, n_classes).to(device)
+        self.discriminator = VGanDiscriminator(n_channels + n_classes).to(device)
         self.discriminator.train()
-        self.s_optimizer = optim.Adam(self.segmentor.parameters(), lr=0.0001)
-        self.d_optimizer = optim.Adam(self.discriminator.parameters(), lr=0.00025)
-        self.bce_loss = torch.nn.BCELoss(reduction='sum')
+        self.s_optimizer = optim.Adam(self.segmentor.parameters(), lr=1e-4,betas=(0.5,0.9),eps=10e-8)
+        self.d_optimizer = optim.Adam(self.discriminator.parameters(), lr=1e-4,betas=(0.5,0.9),eps=10e-8)
         self.ce_loss = torch.nn.CrossEntropyLoss()
+        self.d_steps = 1
 
-    def _discriminator_loss(self, d_out_on_gt, d_out_on_pred):
-        device = d_out_on_gt.device
-        zeros = torch.zeros_like(d_out_on_pred, requires_grad=False).to(device)
-        ones = torch.ones_like(d_out_on_gt, requires_grad=False).to(device)
-        gt_loss = self.bce_loss(d_out_on_gt, ones)
-        pred_loss = self.bce_loss(d_out_on_pred, zeros)
+    def _calc_gradient_penalty(self, netD, real_data, fake_data, LAMBDA=10):
+        BATCH = real_data.size()[0]
+        alpha = torch.rand(BATCH, 1)
+        # print(alpha.size(),real_data.size())
+        alpha = alpha.unsqueeze(-1).unsqueeze(-1).expand(real_data.size())
+        alpha = alpha.cuda()
+        interpolates = alpha * real_data + ((1 - alpha) * fake_data)
+        interpolates = interpolates.cuda()
+        interpolates.requires_grad=True
 
-        return gt_loss, pred_loss
+        disc_interpolates = netD(interpolates)
 
-    def _segmentor_adverserial_loss(self, d_out_on_pred):
-        device = d_out_on_pred.device
-        ones = torch.ones_like(d_out_on_pred, requires_grad=False).to(device)
-        adverserial_loss = self.bce_loss(d_out_on_pred, ones)
+        gradients = grad(outputs=disc_interpolates, inputs=interpolates,
+                         grad_outputs=torch.ones(disc_interpolates.size()).cuda(),
+                         create_graph=True, retain_graph=True, only_inputs=True)[0]
 
-        return adverserial_loss
+        gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean() * LAMBDA
+        return gradient_penalty
 
     def train_one_sample(self, ct_volume, gt_volume, global_step):
         self.segmentor.train()
@@ -41,31 +45,39 @@ class VGanModel(SegmentationModel):
         # Train discriminator:
         self.d_optimizer.zero_grad()
 
-        pred_volume = self.segmentor(ct_volume)
-        d_outputs_pred = self.discriminator(pred_volume.detach())
         gt_one_hot = F.one_hot(gt_volume[:, 0], 3).permute(0, 3, 1, 2).float()
-        d_outputs_gt = self.discriminator(gt_one_hot)
+        real_pair = torch.cat([ct_volume, gt_one_hot], dim=1)
+        d_outputs_gt = self.discriminator(real_pair)
 
-        d_loss_gt, d_loss_pred = self._discriminator_loss(d_outputs_gt, d_outputs_pred)
-        d_loss_gt.backward()
-        d_loss_pred.backward()
+        pred_volume = self.segmentor(ct_volume)
+        fake_pair = torch.cat([ct_volume, pred_volume.detach()], dim=1)
+        d_outputs_pred = self.discriminator(fake_pair)
 
+        gradient_penalty=self._calc_gradient_penalty(self.discriminator, real_pair.data, fake_pair.data)
+
+        loss = d_outputs_gt - d_outputs_pred + gradient_penalty
+        loss.backward()
         self.d_optimizer.step()
 
+        losses = {"d_gt": d_outputs_gt.item(), "d_pred": d_outputs_pred.item(),
+                  "gradient_penalty": gradient_penalty.item()}
+
         # Train segmentor
-        # if global_step % self.d_steps == 0:
-        self.s_optimizer.zero_grad()
+        if global_step % self.d_steps == 0:
+            self.segmentor.zero_grad()
+            pred_volume = self.segmentor(ct_volume)
+            ce_loss = self.ce_loss(pred_volume, gt_volume[:, 0])  # Seg Loss
+            fake_pair = torch.cat([ct_volume, pred_volume], dim=1)
+            d_outputs_pred = self.discriminator(fake_pair)
+            adverserial_loss = d_outputs_pred.mean()
+            g_loss = ce_loss + 0.03 * adverserial_loss
+            g_loss.backward()
+            self.s_optimizer.step()
 
-        ce_loss = self.ce_loss(pred_volume, gt_volume[:, 0])
-        d_outputs_pred = self.discriminator(pred_volume) # Can we avoid repeated inference here?
-        adverserial_loss = self._segmentor_adverserial_loss(d_outputs_pred)
-        g_loss = ce_loss + 0.01 * adverserial_loss
-        g_loss.backward()
+            losses["ce_loss"] = ce_loss.item()
+            losses["adv_loss"] = adverserial_loss.item()
 
-        self.s_optimizer.step()
-
-        return {"ce_loss": ce_loss.item(), 'G_adv_loss':adverserial_loss.item(),
-                "d_loss_gt": d_loss_gt.item(), "d_loss_pred": d_loss_pred.item()}
+        return losses
 
     def step_scheduler(self, evaluation_score):
         pass
