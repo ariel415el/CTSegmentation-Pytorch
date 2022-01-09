@@ -41,14 +41,14 @@ class VnetModel(SegmentationModel):
 
     def predict_volume(self, ct_volume, overlap=None):
         """
-        ct_volume.shape = (b, slices, H, W)
-        returns prdiction of shape (b, n_classes, slices, H, W)
+        ct_volume.shape = (1, slices, H, W)
+        returns prdiction of shape (1, n_classes, slices, H, W)
         """
         self.net.eval()
         if not overlap:
             overlap = self.slice_size
-        pred_volume = torch.stack([torch.zeros_like(ct_volume)] * 3, dim=1).to(device=ct_volume.device)
-        pred_counters = torch.stack([torch.zeros_like(ct_volume)] * 3, dim=1).to(device=ct_volume.device)
+        pred_volume = torch.stack([torch.zeros_like(ct_volume)] * self.n_classes, dim=1).to(device=ct_volume.device)
+        pred_counters = torch.stack([torch.zeros_like(ct_volume)] * self.n_classes, dim=1).to(device=ct_volume.device)
         with torch.no_grad():
             for i in range(0, ct_volume.shape[-3] - self.slice_size, overlap):
                 pred_volume[..., i: i + self.slice_size, :, :] += self.net(ct_volume[..., i: i + self.slice_size, :, :])

@@ -24,10 +24,20 @@ class TverskyScore:
         denominator[nwhere] = tp[nwhere]
 
         score = (tp + 1e-6) / (denominator + 1e-6)
-        dice = torch.clip(score, 0, 1)
-        return dice
+        score = torch.clip(score, 0, 1)
+        return score
 
+def compute_IOU(pred_mat, gt_map):
+    """
+    :param pred_mat: a matrix of shape (b, slices, H, W) with values in [0,1]
+    :param gt_map: matrix of shape (b, slices, H, W) with values in [0,1]
+    """
+    intersection = (pred_mat * gt_map).sum([1, 2, 3])
+    union = (pred_mat + gt_map).sum([1, 2, 3]) - intersection
+    results = intersection / union
+    results[union == 0] = 1
 
+    return results
 
 def per_class_score(pred_volume, segmentation_volume, score_func, drop_bg_class=False):
     """
@@ -52,9 +62,10 @@ def compute_segmentation_loss(pred_volume, segmentation_volume, score_func):
     :param segmentation_volume: uint8 array of shape (b, 1, slices, H, W) containing segmentation labels
     """
     pred_volume = F.softmax(pred_volume, dim=1).float()
-    dice = per_class_score(pred_volume, segmentation_volume, score_func=score_func)
+    score = per_class_score(pred_volume, segmentation_volume, score_func=score_func)
 
-    return (1 - dice).mean()
+    return (1 - score).mean()
+
 
 def compute_segmentation_score(pred_volume, segmentation_volume, score_func):
     """
@@ -65,8 +76,8 @@ def compute_segmentation_score(pred_volume, segmentation_volume, score_func):
     pred_map_volume = torch.argmax(pred_volume, dim=1, keepdim=True)
     pred_volume = F.one_hot(pred_map_volume[:, 0], pred_volume.shape[1]).permute(0, 4, 1, 2, 3)
 
-    dice = per_class_score(pred_volume, segmentation_volume, score_func=score_func)
-    return dice.mean()
+    score = per_class_score(pred_volume, segmentation_volume, score_func=score_func)
+    return score.mean()
 
 # def well_classified_voxel_perc(pred_volume, segmentation_volume):
 #     """

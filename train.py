@@ -49,10 +49,11 @@ def train_model(model,  dataloaders, device, train_steps, train_dir):
 
             # Evaluation round
             if global_step % eval_freq == 0:
-                val_score = evaluate(model, val_loader, device, f"{train_dir}/eval-step-{global_step}")
-                model.step_scheduler(val_score)
-                loss_plotter.plot({'val_scaore': val_score})
+                evaluation_report = evaluate(model, val_loader, device, f"{train_dir}/eval-step-{global_step}")
+                model.step_scheduler(evaluation_report['Dice'])
+                evaluation_report.pop("Slice/sec")
+                loss_plotter.plot(evaluation_report)
 
-                torch.save(model.get_state_dict(), f'{train_dir}/checkpoint_epoch{global_step}.pth')
+                torch.save(model.get_state_dict(), f'{train_dir}/latest.pth')
 
             global_step += 1
