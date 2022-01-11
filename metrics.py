@@ -13,7 +13,7 @@ class TverskyScore:
         if the weights are booth 0.5 you get exactly the dice score (f1)
         :param pred_mat: a matrix of shape (b, slices, H, W) with values in [0,1]
         :param gt_map: matrix of shape (b, slices, H, W) with values in [0,1]
-        :return:
+        :return: scores array of size b
         """
         tp = (pred_mat * gt_map).sum([1, 2, 3])
         fp = (pred_mat * (1 - gt_map)).sum([1, 2, 3])
@@ -27,10 +27,12 @@ class TverskyScore:
         score = torch.clip(score, 0, 1)
         return score
 
+
 def compute_IOU(pred_mat, gt_map):
     """
     :param pred_mat: a matrix of shape (b, slices, H, W) with values in [0,1]
     :param gt_map: matrix of shape (b, slices, H, W) with values in [0,1]
+    :return: scores array of size b
     """
     intersection = (pred_mat * gt_map).sum([1, 2, 3])
     union = (pred_mat + gt_map).sum([1, 2, 3]) - intersection
@@ -39,7 +41,7 @@ def compute_IOU(pred_mat, gt_map):
 
     return results
 
-def per_class_score(pred_volume, segmentation_volume, score_func, drop_bg_class=False):
+def per_class_score(pred_volume, segmentation_volume, score_func):
     """
     :param pred_volume: float array of shape (b, n_class, slices, H, W) contating class logits
     :param segmentation_volume: uint8 array of shape (b, 1, slices, H, W) containing segmentation labels
@@ -51,10 +53,7 @@ def per_class_score(pred_volume, segmentation_volume, score_func, drop_bg_class=
     for c in range(n_class):
         scores.append(score_func(pred_volume[:, c], gt_1hot_volume[:, c]))
 
-    if drop_bg_class:
-        scores = scores[1:]
-
-    return torch.stack(scores).mean()
+    return torch.stack(scores).mean(1)
 
 def compute_segmentation_loss(pred_volume, segmentation_volume, score_func):
     """
@@ -64,10 +63,13 @@ def compute_segmentation_loss(pred_volume, segmentation_volume, score_func):
     pred_volume = F.softmax(pred_volume, dim=1).float()
     score = per_class_score(pred_volume, segmentation_volume, score_func=score_func)
 
-    return (1 - score).mean()
+    loss = 1 - score
+    loss = loss[1:].mean()
+
+    return loss
 
 
-def compute_segmentation_score(pred_volume, segmentation_volume, score_func):
+def compute_segmentation_score(pred_volume, segmentation_volume, score_func, return_per_class=False):
     """
     :param pred_volume: float array of shape (b, n_class, slices, H, W) contating class logits
     :param segm_map: uint8 array of shape (b, 1, slices, H, W) containing segmentation labels
@@ -76,8 +78,11 @@ def compute_segmentation_score(pred_volume, segmentation_volume, score_func):
     pred_map_volume = torch.argmax(pred_volume, dim=1, keepdim=True)
     pred_volume = F.one_hot(pred_map_volume[:, 0], pred_volume.shape[1]).permute(0, 4, 1, 2, 3)
 
-    score = per_class_score(pred_volume, segmentation_volume, score_func=score_func)
-    return score.mean()
+    scores = per_class_score(pred_volume, segmentation_volume, score_func=score_func)
+    if return_per_class:
+        return scores
+    else:
+        return scores.mean()
 
 # def well_classified_voxel_perc(pred_volume, segmentation_volume):
 #     """

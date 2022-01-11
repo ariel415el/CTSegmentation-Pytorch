@@ -10,15 +10,16 @@ from models.generic_model import SegmentationModel
 
 
 class VGanModel(SegmentationModel):
-    def __init__(self, n_channels, n_classes, device=torch.device('cpu')):
+    def __init__(self, n_channels, n_classes, device=torch.device('cpu'), eval_batchsize=1):
         super(VGanModel, self).__init__(n_channels, n_classes, device)
+        self.eval_batchsize = eval_batchsize
         self.segmentor = VGanGenerator(n_channels, n_classes).to(device)
         self.discriminator = VGanDiscriminator(n_channels + n_classes).to(device)
         self.discriminator.train()
         self.s_optimizer = optim.Adam(self.segmentor.parameters(), lr=1e-4,betas=(0.5,0.9),eps=10e-8)
         self.d_optimizer = optim.Adam(self.discriminator.parameters(), lr=1e-4,betas=(0.5,0.9),eps=10e-8)
         self.ce_loss = torch.nn.CrossEntropyLoss()
-        self.d_steps = 1
+        self.d_steps = 10
 
     def _calc_gradient_penalty(self, netD, real_data, fake_data, LAMBDA=10):
         BATCH = real_data.size()[0]
@@ -45,13 +46,13 @@ class VGanModel(SegmentationModel):
         # Train discriminator:
         self.d_optimizer.zero_grad()
 
-        gt_one_hot = F.one_hot(gt_volume[:, 0], 3).permute(0, 3, 1, 2).float()
+        gt_one_hot = F.one_hot(gt_volume[:, 0], self.n_classes).permute(0, 3, 1, 2).float()
         real_pair = torch.cat([ct_volume, gt_one_hot], dim=1)
-        d_outputs_gt = self.discriminator(real_pair)
+        d_outputs_gt = self.discriminator(real_pair).mean()
 
         pred_volume = self.segmentor(ct_volume)
         fake_pair = torch.cat([ct_volume, pred_volume.detach()], dim=1)
-        d_outputs_pred = self.discriminator(fake_pair)
+        d_outputs_pred = self.discriminator(fake_pair).mean()
 
         gradient_penalty=self._calc_gradient_penalty(self.discriminator, real_pair.data, fake_pair.data)
 
@@ -68,9 +69,8 @@ class VGanModel(SegmentationModel):
             pred_volume = self.segmentor(ct_volume)
             ce_loss = self.ce_loss(pred_volume, gt_volume[:, 0])  # Seg Loss
             fake_pair = torch.cat([ct_volume, pred_volume], dim=1)
-            d_outputs_pred = self.discriminator(fake_pair)
-            adverserial_loss = d_outputs_pred.mean()
-            g_loss = ce_loss + 0.03 * adverserial_loss
+            adverserial_loss = self.discriminator(fake_pair).mean()
+            g_loss = ce_loss -0.03 * adverserial_loss
             g_loss.backward()
             self.s_optimizer.step()
 
@@ -84,17 +84,21 @@ class VGanModel(SegmentationModel):
 
     def predict_volume(self, ct_volume):
         """
-        ct_volume.shape = (b, slices, H, W)
-        returns prdiction of shape (b, n_classes, slices, H, W)
+        ct_volume.shape = (1, slices, H, W)
+        returns prdiction of shape (1, n_classes, slices, H, W)
         """
         self.segmentor.eval()
-        pred_volume = []
+        _, S, H, W = ct_volume.shape
+        pred_volumes = []
+        ct_volume = ct_volume.view(S, 1, H, W)
         with torch.no_grad():
-            for i in range(ct_volume.shape[1]):
-                image = ct_volume[:, i]
-                pred_volume.append(self.segmentor(image.unsqueeze(1)))
-        pred_volume = torch.stack(pred_volume, dim=2)
-        return pred_volume
+            i = 0
+            while i < S:
+                pred_volume = self.segmentor(ct_volume[i: i + self.eval_batchsize])
+                pred_volumes.append(pred_volume)
+                i += self.eval_batchsize
+
+        return torch.cat(pred_volumes).permute(1, 0, 2, 3).unsqueeze(0)
 
     def get_state_dict(self):
         return {

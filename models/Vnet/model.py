@@ -1,7 +1,7 @@
 import torch
 
 from models.Vnet.net import VNet
-from losses import compute_segmentation_loss, TverskyScore
+from metrics import compute_segmentation_loss, TverskyScore
 from torch import optim
 
 from models.generic_model import SegmentationModel
@@ -34,7 +34,7 @@ class VnetModel(SegmentationModel):
         loss.backward()
         self.optimizer.step()
 
-        return {"Dice_sloss": loss.item()}
+        return {"Dice_loss": loss.item()}
 
     def step_scheduler(self, evaluation_score):
         self.scheduler.step(evaluation_score)

@@ -66,7 +66,7 @@ def get_dataloaders(data_root, val_perc, params, slice_size=1, resize=128):
 
 
 class CTDataset(Dataset):
-    def __init__(self, data_paths, transforms=None):
+    def __init__(self, data_paths, transforms=None, min_n_slices=None):
         self.transforms = transforms
         self.cts = []
         self.segs = []
@@ -75,10 +75,10 @@ class CTDataset(Dataset):
         n_dropped_volumes = 0
         for ct_path, seg_path in data_paths:
             label_map = read_volume(seg_path)
-            if label_map.shape[0] >= 16:
+            if min_n_slices is None or label_map.shape[0] >= min_n_slices:
                 self.segs.append(label_map)
                 self.cts.append(read_volume(ct_path) / 255)
-                self.case_names.append(os.path.splitext(os.path.basename(ct_path)))
+                self.case_names.append(os.path.splitext(os.path.basename(ct_path))[0])
                 n_slices += self.cts[-1].shape[-3]
             else:
                 n_dropped_volumes += 1

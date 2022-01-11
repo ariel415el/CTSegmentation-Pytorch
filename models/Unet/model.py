@@ -1,7 +1,7 @@
 import torch
 from torch import nn, optim
 from models.Unet.net import UNet
-from losses import compute_segmentation_loss, TverskyScore
+from metrics import compute_segmentation_loss, TverskyScore
 from models.generic_model import SegmentationModel
 
 
@@ -34,7 +34,7 @@ class UnetModel(SegmentationModel):
         loss.backward()
         self.optimizer.step()
 
-        return {"Dice_loss": loss.item()}
+        return {"Dice+CE_loss": loss.item()}
 
     def step_scheduler(self, evaluation_score):
         self.scheduler.step(evaluation_score)

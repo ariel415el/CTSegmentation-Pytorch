@@ -3,7 +3,7 @@ import torch
 
 from models.Semantic_Segmentation_using_Adversarial_Networks.segmentor import fcn32s
 from models.Semantic_Segmentation_using_Adversarial_Networks.discriminator import StanfordBNet
-from losses import compute_segmentation_loss, TverskyScore
+from metrics import compute_segmentation_loss, TverskyScore
 from torch import optim
 import torch.nn.functional as F
 
@@ -17,7 +17,6 @@ def VolumeLoss(preds, gts):
     """
     dice_loss = compute_segmentation_loss(preds, gts.unsqueeze(1), TverskyScore(0.5, 0.5))
     return dice_loss
-
 
 
 class AdSegModel(SegmentationModel):
@@ -58,7 +57,7 @@ class AdSegModel(SegmentationModel):
 
         pred_volume = self.segmentor(ct_volume)
         d_outputs_pred = self.discriminator(pred_volume.detach(), ct_volume)
-        gt_one_hot = F.one_hot(gt_volume[:, 0], 3).permute(0, 3, 1, 2).float()
+        gt_one_hot = F.one_hot(gt_volume[:, 0], self.n_classes).permute(0, 3, 1, 2).float()
         d_outputs_gt = self.discriminator(gt_one_hot, ct_volume)
 
         d_loss_gt, d_loss_pred = self._discriminator_loss(d_outputs_gt, d_outputs_pred)

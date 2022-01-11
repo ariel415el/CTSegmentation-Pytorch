@@ -1,7 +1,6 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
-datasets/Full-Torso-*
-datasets/Cropped_Tumoers_Dataset-*
+datasets/LiverData_*
 .idea
 train_dir*/
 test/

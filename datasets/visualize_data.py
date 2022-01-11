@@ -29,11 +29,11 @@ def visualize_dataset(data_path):
 
         for i in range(ct_volume.shape[0]):
             img1 = overlay(ct_volume[i], gt_volume[i])
-            img2 = gt_volume[i].unsqueeze(1).repeat(1, 3, 1, 1)
+            img2 = overlay(ct_volume[i], gt_volume[i]*0)
             img = torch.cat([img1, img2], dim=-1)
             for s in range(ct_volume.shape[-3]):
                 save_image(img[s], f"{volume_dir}/{i}-{s}.png", normalize=True)
 
 
 if __name__ == '__main__':
-    visualize_dataset("Cropped_Tumoers_Dataset-(L-1_mm-2)")
+    visualize_dataset("LiverData_(S-1_MS-(3, 30, 30)_MM-1RL-True_CP-[CL-2_margins-(1, 20, 20)_OB-0.5_MD-3])")
