@@ -30,15 +30,15 @@ def train_model(model,  dataloaders, device, train_steps, train_dir):
     loss_plotter = plotter(train_dir)
     train_loader, val_loader = dataloaders
 
-    eval_freq = train_steps // 30
+    eval_freq = train_steps // 50
 
     # Begin training
     pbar = tqdm(unit='Slices')
     step = 0
     while step < train_steps:
-        for b_idx, (ct_volume, gt_volume) in enumerate(train_loader):
-            ct_volume = ct_volume.to(device=device, dtype=torch.float32)
-            gt_volume = gt_volume.to(device=device, dtype=torch.long)
+        for sample in train_loader:
+            ct_volume = sample['ct'].to(device=device, dtype=torch.float32)
+            gt_volume = sample['gt'].to(device=device, dtype=torch.long)
 
             losses = model.train_one_sample(ct_volume, gt_volume, step)
             loss_plotter.register_data(losses)

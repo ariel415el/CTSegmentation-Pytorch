@@ -18,10 +18,11 @@ def evaluate(model, dataloader, device, outputs_dir, n_plotted_volumes=2):
     total_iou = 0
     total_slices_per_sec = 0
     # iterate over the validation set
-    for b_idx, (ct_volume, gt_volume) in enumerate(dataloader):
+    for b_idx, sample in enumerate(dataloader):
+        ct_volume = sample['ct'].to(device=device, dtype=torch.float32)
+        gt_volume = sample['gt'].to(device=device, dtype=torch.long)
         assert(ct_volume.shape[0] == 1)
-        ct_volume = ct_volume.to(device=device, dtype=torch.float32)
-        gt_volume = gt_volume.to(device=device, dtype=torch.long)
+        case_name = sample['case_name'][0]
 
         start = time()
         pred_volume = model.predict_volume(ct_volume)
@@ -40,7 +41,7 @@ def evaluate(model, dataloader, device, outputs_dir, n_plotted_volumes=2):
             pred_vis = overlay(ct_volume[0], pred_class[0])
             imgs = torch.cat([raw, gt_vis, pred_vis], dim=-1)
             for s in range(ct_volume.shape[1]):
-                save_path = os.path.join(outputs_dir, f"{b_idx}-{s}_Dice-{dice_score.mean():.3f}_IOU-{iou_score.mean():.3f}.png")
+                save_path = os.path.join(outputs_dir, f"Case-{case_name}-{s}_Dice-{dice_score.mean():.3f}_IOU-{iou_score.mean():.3f}.png")
                 save_image(imgs[s], save_path, normalize=True)
 
     # Fixes a potential division by zero error
@@ -49,7 +50,7 @@ def evaluate(model, dataloader, device, outputs_dir, n_plotted_volumes=2):
     total_dice /= len(dataloader)
     total_iou /= len(dataloader)
     results[f"Dice-non-bg"] = total_dice[1:].mean()
-    for i in range(len(total_dice)):
+    for i in range(1, len(total_dice)):
         results[f"Dice-class-{i}"] = total_dice[i].item()
         results[f"IOU-class-{i}"] = total_iou[i].item()
     return results

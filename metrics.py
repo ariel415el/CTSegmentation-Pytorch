@@ -21,7 +21,8 @@ class TverskyScore:
 
         denominator = tp + fp * self.fp_weight + fn * self.fn_weight
         nwhere = gt_map.sum([1, 2, 3]) == 0
-        denominator[nwhere] = tp[nwhere]
+        if torch.any(nwhere):
+            denominator[nwhere] = tp[nwhere]
 
         score = (tp + 1e-6) / (denominator + 1e-6)
         score = torch.clip(score, 0, 1)
@@ -99,4 +100,15 @@ def compute_segmentation_score(pred_volume, segmentation_volume, score_func, ret
 #
 #     return intersection / union
 
+if __name__ == '__main__':
+    import numpy as np
+    from medpy.metric import dc
+    gt = np.random.randint(0, 2, (5,128,128))
+    pred = np.random.randint(0, 2, (5,128,128))
 
+    score = dc(pred, gt)
+    print(score)
+
+    print(torch.from_numpy(pred)[None, :].shape)
+    score = TverskyScore(0.5,0.5)(torch.from_numpy(pred)[None, :], torch.from_numpy(gt)[None, :])
+    print(score)
