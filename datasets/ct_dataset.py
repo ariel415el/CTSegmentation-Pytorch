@@ -2,12 +2,12 @@ import os
 import random
 
 import numpy as np
+import torch
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 
 from datasets import augmentations
 from datasets.data_utils import get_data_pathes, read_volume
-import torchio as tio
 
 
 class ToTensor(object):
@@ -40,18 +40,19 @@ class SliceVolume(object):
 def get_transforms(slice_size, resize):
     train_transforms = [
         SliceVolume(slice_size=slice_size),
-        augmentations.ElasticDeformation3D(sigma=7, p=0.5),
-        augmentations.RandomCrop(p=0.5),
+        augmentations.ElasticDeformation3D(sigma=7, p=0.1),
+        augmentations.RandomCrop(p=1),
+        augmentations.random_clip((-200, -50), (256, 1024)),
+        ToTensor(),
         augmentations.Resize(resize),
-        # augmentations.tio_wrapper(tio.RescaleIntensity((-1, 1), keys=['ct'])),
-        # augmentations.tio_wrapper(tio.RandomNoise(p=0.5, keys=['ct'])),
-        # augmentations.tio_wrapper(tio.RandomBlur(p=0.5, keys=['ct'])),
-        ToTensor()
+        augmentations.random_flips(p=1),
+        augmentations.random_noise(p=0.5, std=0.25),
     ]
 
     val_transforms = [
-        augmentations.Resize(resize),
-        ToTensor()
+        ToTensor(),
+        augmentations.random_clip(-100, 400),
+        augmentations.Resize(resize)
     ]
     return transforms.Compose(train_transforms), transforms.Compose(val_transforms)
 
@@ -92,49 +93,29 @@ class CTDataset(Dataset):
         self.case_names = []
         n_slices = []
         n_dropped_volumes = 0
+        print("Loading data into memory... ", end='')
         for ct_path, seg_path in data_paths:
             label_map = read_volume(seg_path)
             if min_n_slices is None or label_map.shape[0] >= min_n_slices:
-                self.segs.append(label_map)
-                self.cts.append(read_volume(ct_path) / 255)
+                self.segs.append(label_map.astype(np.uint8))
+                self.cts.append(read_volume(ct_path))
                 self.case_names.append(os.path.splitext(os.path.basename(ct_path))[0])
                 n_slices.append(self.cts[-1].shape[-3])
             else:
                 n_dropped_volumes += 1
 
-        print(f"Done loading {np.sum(n_slices)} slices in {len(self.cts)}, "
+        print(f"Done loading {np.sum(n_slices)} slices in {len(self.cts)} volumes, "
               f"avg axial size volumes {np.mean(n_slices):.2f}, {n_dropped_volumes} volumes dropped")
 
     def __len__(self):
         return len(self.cts)
 
     def __getitem__(self, i):
-        # sample = {'ct':  self.cts[i], "gt":  self.segs[i], 'case_name': self.case_names[i]}
         sample = self.cts[i],  self.segs[i]
         if self.transforms:
             sample = self.transforms(sample)
 
-        return {'ct':  sample[0], "gt":  sample[1], 'case_name': self.case_names[i]}
+        gt = (sample[1] == 2).long()
+        mask = (sample[1] != 0)
 
-
-if __name__ == '__main__':
-    import torch
-    from datasets.visualize_data import overlay
-    from torchvision.utils import save_image
-    outputs_dir = "visualize_augmentations"
-    os.makedirs(outputs_dir, exist_ok=True)
-    data_path = 'datasets/LiverData_(S-1_MS-(3, 5, 5)_RL-True_CP-CL-1_margins-(1, 1, 1)_OB-0.5_MD-11)'
-    params = dict(batch_size=1, num_workers=0)
-    train_loader, _ = get_dataloaders(data_path, val_perc=0.1, params=params, slice_size=64, resize=256)
-
-    for sample in train_loader:
-        ct = sample['ct'][0]
-        gt = sample['gt'][0]
-        case_name = sample['case_name'][0]
-
-        raw = overlay(ct, gt * 0)
-        gt_vis = overlay(ct, gt)
-        imgs = torch.cat([raw, gt_vis], dim=-1)
-        for s in range(ct.shape[0]):
-            save_path = os.path.join(outputs_dir, f"Case-{case_name}-slice-{s}_.png")
-            save_image(imgs[s], save_path, normalize=True)
+        return {'ct':  sample[0], "gt":  gt, 'mask': mask, 'case_name': self.case_names[i]}

@@ -108,3 +108,39 @@ class UNet(nn.Module):
         x = self.up4(x, x1)
         logits = self.outc(x)
         return logits
+
+
+if __name__ == '__main__':
+    net = UNet(1,2)
+    net.eval()
+    x1 = torch.zeros((1,1,16,16))
+    x2 = torch.zeros((1,1,16,16))
+
+    input_batch = torch.cat([x1,x2], dim=0)
+    input_tile_hor = torch.cat([x1,x2], dim=-1)
+    input_tile_ver = torch.cat([x1,x2], dim=-2)
+    print(input_batch.shape, input_tile_hor.shape, input_tile_ver.shape)
+
+    output_batch = net(input_batch)
+    output_tile_hor = net(input_tile_hor)
+    output_tile_ver = net(input_tile_ver)
+    print(output_batch.shape, output_tile_hor.shape, output_tile_ver.shape)
+
+    x1_batch = output_batch[0].unsqueeze(0)
+    x2_batch = output_batch[1].unsqueeze(0)
+
+    x1_tile_hor = output_tile_hor[:, :, :, :16]
+    x2_tile_hor = output_tile_hor[:, :, :, 16:]
+
+    x1_tile_ver = output_tile_ver[:, :, :16]
+    x2_tile_ver = output_tile_ver[:, :, 16:]
+
+    # x1_1 = torch.cat([output_1[0].unsqueeze(0), output_1[1].unsqueeze(0)], dim=-1)
+
+    print(x1_batch.shape, x2_batch.shape, x1_tile_hor.shape, x2_tile_hor.shape, x1_tile_ver.shape, x2_tile_ver.shape)
+
+    diff1 = torch.abs(x1_batch - x1_tile_hor)
+    diff2 = torch.abs(x1_batch - x1_tile_ver)
+    diff3 = torch.abs(x1_tile_hor - x1_tile_ver)
+
+    print(diff1.sum(), diff2.sum(), diff3.sum())

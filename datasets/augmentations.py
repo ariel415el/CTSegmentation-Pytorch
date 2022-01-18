@@ -2,6 +2,7 @@ import numpy as np
 import torch
 from torchvision.transforms import transforms, InterpolationMode
 from scipy.ndimage import map_coordinates
+import torchvision.transforms.functional as F
 
 
 class RandomScale:
@@ -24,13 +25,17 @@ class RandomScale:
 class Resize:
     def __init__(self, rescale=128):
         self.rescale = rescale
+        self.resize_ct = transforms.Resize((self.rescale, self.rescale))
+        self.resize_gt = transforms.Resize((self.rescale, self.rescale), interpolation=InterpolationMode.NEAREST)
 
     def __call__(self, sample):
         image, segmap = sample
 
-        image = transforms.Resize((self.rescale, self.rescale))(torch.from_numpy(image).unsqueeze(0))[0].numpy()
-        segmap = transforms.Resize((self.rescale, self.rescale), interpolation=InterpolationMode.NEAREST)(torch.from_numpy(segmap).unsqueeze(0))[0].numpy()
+        image = self.resize_ct(image)
+        segmap = self.resize_gt(segmap)
 
+        # image = transforms.Resize((self.rescale, self.rescale))(torch.from_numpy(image).unsqueeze(0))[0].numpy()
+        # segmap = transforms.Resize((self.rescale, self.rescale), interpolation=InterpolationMode.NEAREST)(segmap[None, :])[0]
         return image, segmap
 
 
@@ -70,7 +75,8 @@ class ElasticDeformation3D_package:
         if torch.rand(1) < self.p:
             import elasticdeform
             # return elasticdeform.deform_random_grid([X, Y], sigma=self.sigma, order=[1, 0], mode='nearest', axis=(1, 2)) # only spatialy (same for all slices)
-            return elasticdeform.deform_random_grid(list(sample), sigma=self.sigma, order=[1, 0], mode='nearest')
+            sample = elasticdeform.deform_random_grid(list(sample), sigma=self.sigma, order=[1, 0], mode='nearest')
+        return sample
 
 
 class ElasticDeformation3D:
@@ -100,47 +106,86 @@ class ElasticDeformation3D:
     def __call__(self, sample):
         if torch.rand(1) < self.p:
             X, Y = sample
-            shape = X.shape
+            S, H, W = X.shape
 
             # creates the grid of coordinates of the voxels of the image (an ndim array per dimension)
-            voxel_coordinates = np.meshgrid(np.arange(shape[0]),
-                                      np.arange(shape[1]),
-                                      np.arange(shape[2]),
+            voxel_coordinates = np.meshgrid(np.arange(S),
+                                      np.arange(H),
+                                      np.arange(W),
                                       indexing='ij')
 
             # creates the grid of coordinates of the points of the image in the "deformation grid" frame of reference
-            coordinate_grid_0_to_n_points = np.meshgrid(np.linspace(0, self.n_points - 1, shape[0]),
-                             np.linspace(0, self.n_points - 1, shape[1]),
-                             np.linspace(0, self.n_points - 1, shape[2]),
+            coordinate_grid_0_to_n_points = np.meshgrid(np.linspace(0, self.n_points - 1, S),
+                             np.linspace(0, self.n_points - 1, H),
+                             np.linspace(0, self.n_points - 1, W),
                              indexing='ij')
 
             # creates the deformation along each dimension and then add it to the coordinates
-            for i in range(len(shape)):
+            for i in range(len(voxel_coordinates)):
                 rand_displacements = np.random.randn(self.n_points, self.n_points, self.n_points) * self.sigma  # creating the displacement at the control points
-                interp_displacements = map_coordinates(rand_displacements, coordinate_grid_0_to_n_points, order=self.order).reshape(shape)
+                interp_displacements = map_coordinates(rand_displacements, coordinate_grid_0_to_n_points, order=self.order).reshape(X.shape)
                 voxel_coordinates[i] = np.add(voxel_coordinates[i], interp_displacements)  # adding the displacement
 
-            X = map_coordinates(X, voxel_coordinates, order=self.order, mode='nearest').reshape(shape)
-            Y = map_coordinates(Y, voxel_coordinates, order=0, mode='nearest').reshape(shape)
+            X = map_coordinates(X, voxel_coordinates, order=self.order, mode='nearest').reshape(X.shape)
+            Y = map_coordinates(Y, voxel_coordinates, order=0, mode='nearest').reshape(X.shape)
             sample = X,Y
 
         return sample
 
 
-# class tio_wrapper:
-#     def __init__(self, tio_transform):
-#         self.tio_transform = tio_transform
-#
-#     def __call__(self, sample):
-#         x = {'ct': torch.from_numpy(sample[0][None, :]), 'gt': torch.from_numpy(sample[1][None, :])}
-#         x = self.tio_transform(x)
-#         return x['ct'][0].numpy(), x['gt'][0].numpy()
+class random_flips:
+    def __init__(self, p=0.5):
+        self.p = p
+
+    def __call__(self, sample):
+        image, segmap = sample
+        if torch.rand(1) < self.p:
+            if torch.rand(1) < 0.5:
+                image, segmap = F.hflip(image), F.hflip(segmap)
+            if torch.rand(1) < 0.5:
+                image, segmap = F.vflip(image), F.vflip(segmap)
+        return image, segmap
 
 
-if __name__ == '__main__':
-    x = np.ones((5,128,128))
-    y = np.ones((5,128,128)).astype(int)
+class random_noise:
+    def __init__(self, p=0.5, std=0.25):
+        self.p = p
+        self.std = std
 
-    trnsf = ElasticDeformation3D(sigma=1)
-    x,y = trnsf((x,y))
-    print(x.shape, y.shape)
+    def __call__(self, sample):
+        image, segmap = sample
+        if torch.rand(1) < self.p:
+            dtype = image.dtype
+            image = image.float()
+            image += torch.randn(image.shape) * self.std * image.std()
+            image = image.to(dtype=dtype)
+        return image, segmap
+
+
+class random_clip:
+    def __init__(self, min_interval=(-512, -511), max_interval=(512,513)):
+        self.min_interval = min_interval
+        self.max_interval = max_interval
+
+    def __call__(self, sample):
+        image, segmap = sample
+        min_v = self.min_interval if type(self.min_interval) == int else np.random.randint(*self.min_interval)
+        max_v = self.max_interval if type(self.max_interval) == int else np.random.randint(*self.max_interval)
+        image = image.clip(min_v, max_v)
+        return image, segmap
+
+class histogram_equalization:
+    def __init__(self, nbins):
+        self.nbins = nbins
+
+    def __call__(self, sample):
+        image, segmap = sample
+        image_histogram, bins = np.histogram(image.flatten(), bins=256, density=True)
+        cdf = image_histogram.cumsum()  # cumulative distribution function
+        cdf = 255 * cdf / cdf[-1]  # normalize
+
+        # use linear interpolation of cdf to find new pixel values
+        image = np.interp(image.flatten(), bins[:-1], cdf).reshape(image.shape)
+        image = image.astype(np.int16)
+
+        return image, segmap

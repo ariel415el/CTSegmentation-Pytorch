@@ -7,8 +7,8 @@ import SimpleITK as sitk
 from scipy.ndimage.morphology import binary_dilation
 import cc3d
 
-@dataclass
-class cropping_params:
+# @dataclass
+class cropping_parameterss:
     """
     param: crop_by_label: create crops around 3d blobs of this values
     param: slice_margins: number padding units (slices/pixels) around area of interest to crop
@@ -54,10 +54,36 @@ def crop_to_boxes_of_interset_cc(image_volume, labels_volume, params):
     return crops
 
 
-def create_dataset(root_dir, spatial_scale=1, min_sizes=(4, 10, 10), crop_params=None, remove_liver_label=False):
+class intencity_parameterss:
+    def __init__(self, clip_values=(-100, 400), hist_equalization=False):
+        self.clip_values = clip_values
+        self.hist_equalization = hist_equalization
+
+    def __str__(self):
+        return "I-" \
+               + (f"Clip-{self.clip_values}" if self.clip_values is not None else '') \
+               + (f"_HistEqual" if self.hist_equalization else '') \
+
+
+def manipulate_CT_intencities(ct_array, params):
+    if params.clip_values is not None:
+        ct_array = np.clip(ct_array, params.clip_values[0], params.clip_values[1])
+
+    if params.hist_equalization:
+        image_histogram, bins = np.histogram(ct_array.flatten(), bins=256, density=True)
+        cdf = image_histogram.cumsum()  # cumulative distribution function
+        cdf = 255 * cdf / cdf[-1]  # normalize
+
+        # use linear interpolation of cdf to find new pixel values
+        ct_array = np.interp(ct_array.flatten(), bins[:-1], cdf).reshape(ct_array.shape)
+        ct_array = ct_array.astype(np.int16)
+
+    return ct_array
+
+
+def create_dataset(root_dir, spatial_scale=1, min_sizes=(4, 10, 10), crop_params=None, intencity_params=None):
     """"
     Create a dataset of 3d crops of tumors with margins
-    param: remove_liver_label: ignore liver labels
     param: crop_params: optional parameters for cropped version of the data
     param: min_sizes: minimal dimensions for a volume
     param: spatial_scale: spatial scale factor
@@ -65,8 +91,8 @@ def create_dataset(root_dir, spatial_scale=1, min_sizes=(4, 10, 10), crop_params
 
     """
     processed_dir = f"LiverData_(S-{spatial_scale}_MS-{min_sizes}" \
-                    + (f"_RL-{remove_liver_label}" if remove_liver_label is not None else '') \
-                    + (f"_CP-{crop_params}" if crop_params is not None else '') \
+                    + (f"_Crop-{crop_params}" if crop_params is not None else '') \
+                    + (f"_Intencity-{intencity_params}" if intencity_params is not None else '') \
                     + ")"
     new_ct_dir = os.path.join(processed_dir, 'ct')
     new_seg_dir = os.path.join(processed_dir, 'seg')
@@ -80,14 +106,14 @@ def create_dataset(root_dir, spatial_scale=1, min_sizes=(4, 10, 10), crop_params
         # Read data
         ct = sitk.ReadImage(os.path.join(root_dir, 'ct', ct_filename), sitk.sitkInt16)
         ct_array = sitk.GetArrayFromImage(ct)
-        seg = sitk.ReadImage(os.path.join(root_dir, 'seg', ct_filename.replace('volume', 'segmentation')),
-                             sitk.sitkInt16)
+        seg = sitk.ReadImage(os.path.join(root_dir, 'seg', ct_filename.replace('volume', 'segmentation')), sitk.sitkInt16)
         seg_array = sitk.GetArrayFromImage(seg)
         assert (seg_array.shape == ct_array.shape)
 
         spacings.append(ct.GetSpacing()[-1])
-        # Manipulate values
-        # ct_array = np.clip(ct_array, IMG_MIN_VAL, IMG_MAX_VAL)
+
+        if intencity_params is not None:
+            ct_array = manipulate_CT_intencities(ct_array, intencity_params)
 
         # Crop blobs and save with the same
         if crop_params is not None:
@@ -96,11 +122,6 @@ def create_dataset(root_dir, spatial_scale=1, min_sizes=(4, 10, 10), crop_params
             all_blobs = [(ct_array, seg_array, "")]
 
         for blob_idx, (ct_array, seg_array, location_string) in enumerate(all_blobs):
-            # seg_array[seg_array > 0] = 1
-
-            if remove_liver_label:
-                seg_array[seg_array == 1] = 0
-                seg_array[seg_array == 2] = 1
 
             # Resample
             if spatial_scale != 1:
@@ -129,7 +150,7 @@ def create_dataset(root_dir, spatial_scale=1, min_sizes=(4, 10, 10), crop_params
             new_ct.SetSpacing(ct.GetSpacing())
             sitk.WriteImage(new_ct, os.path.join(new_ct_dir, fname))
 
-            new_seg = sitk.GetImageFromArray(seg_array)
+            new_seg = sitk.GetImageFromArray(seg_array.astype(np.uint8))
             new_seg.SetSpacing(ct.GetSpacing())
             sitk.WriteImage(new_seg, os.path.join(new_seg_dir, fname).replace(f'volume', f'segmentation'))
 
@@ -141,8 +162,9 @@ if __name__ == '__main__':
     # create_dataset(raw_data, remove_liver_label=False, spatial_scale=0.25)
 
     # crop around liver and show only tumor labels
-    crop_params = cropping_params(cropping_lable=1, slice_margins=(1, 1, 1), mask_dilation=11)
-    create_dataset(raw_data, remove_liver_label=True, min_sizes=(3, 5, 5), crop_params=crop_params)
+    crop_params = cropping_parameterss(cropping_lable=1, slice_margins=(1, 1, 1), mask_dilation=11)
+    # intencity_params = intencity_parameterss(clip_values=(-100, 400), hist_equalization=True)
+    create_dataset(raw_data, min_sizes=(3, 10, 10), crop_params=crop_params, intencity_params=None)
 
     # # Crop around tumors
     # crop_params = cropping_params(cropping_lable=2, slice_margins=(1, 20, 20))

@@ -5,7 +5,7 @@ class SegmentationModel:
         self.n_classes = n_classes
         self.device = device
 
-    def train_one_sample(self, ct_volume, gt_volume, global_step):
+    def train_one_sample(self, ct_volume, gt_volume, mask, global_step):
         """
         Train this model on a single sample.
         Returns a dictionary of loss values.

@@ -5,7 +5,8 @@ import numpy as np
 
 def read_volume(path):
     if path.endswith("nii"):
-        volume = sitk.ReadImage(path, sitk.sitkInt16)
+        # volume = sitk.ReadImage(path, sitk.sitkInt16)
+        volume = sitk.ReadImage(path)
         volume = sitk.GetArrayFromImage(volume)
     else:
         volume = np.load(path)

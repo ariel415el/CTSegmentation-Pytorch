@@ -48,16 +48,15 @@ if __name__ == '__main__':
     # device = torch.device('cpu')
 
     model_name = 'Unet'
-    data_path = 'datasets/LiverData_(S-1_MS-(4, 30, 30)_MM-1RL-True_CP-[CL-1_margins-(1, 2, 2)_OB-0.5_MD-3])'
+    mode = "train"
+    data_path = 'datasets/LiverData_(S-1_MS-(3, 10, 10)_Crop-CL-1_margins-(1, 1, 1)_OB-0.5_MD-11)'
     n_classes = 2
     resize = 256
 
     model, slice_size, batch_size, train_steps = get_model(model_name, n_classes)
     model_dir = f"train_dir/{os.path.basename(data_path)}/{model_name}-{resize}"
 
-    mode = "train"
-
-    params = dict(batch_size=batch_size, num_workers=0)
+    params = dict(batch_size=batch_size, num_workers=4)
     if mode == 'train':
         dataloaders = get_dataloaders(data_path, val_perc=0.1, params=params, slice_size=slice_size, resize=resize)
         train_model(model, dataloaders, device, train_steps=train_steps, train_dir=model_dir)

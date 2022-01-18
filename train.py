@@ -2,10 +2,16 @@ import os
 from collections import defaultdict
 
 import torch
+from matplotlib import pyplot as plt
 from tqdm import tqdm
 
 from evaluate import evaluate
-from utils import plot_scores
+
+
+def plot_scores(values, path):
+    plt.plot(range(len(values)), values)
+    plt.savefig(path)
+    plt.clf()
 
 
 class plotter:
@@ -39,13 +45,14 @@ def train_model(model,  dataloaders, device, train_steps, train_dir):
         for sample in train_loader:
             ct_volume = sample['ct'].to(device=device, dtype=torch.float32)
             gt_volume = sample['gt'].to(device=device, dtype=torch.long)
+            mask_volume = sample['mask'].to(device=device)
 
-            losses = model.train_one_sample(ct_volume, gt_volume, step)
+            losses = model.train_one_sample(ct_volume, gt_volume, mask_volume, step)
             loss_plotter.register_data(losses)
 
             slices = ct_volume.shape[0] * ct_volume.shape[-3]
             pbar.update(slices)
-            pbar.set_description(f"Train-step: {step}/{train_steps}, Losses: {[f'{k}: {v:.3f}' for k, v in losses.items()]}")
+            pbar.set_description(f"Train-step: {step}/{train_steps}, Losses: {[f'{k}: {v:.3f}' for k, v in losses.items()]}, lr: {model.optimizer.param_groups[0]['lr']}")
 
             # Evaluation round
             if step % eval_freq == 0:

@@ -5,14 +5,18 @@ from metrics import compute_segmentation_loss, TverskyScore
 from models.generic_model import SegmentationModel
 
 
-def SliceLoss(preds, gts):
+def SliceLoss(preds, gts, mask):
     """
     :param preds: float array of shape (b, n_class, H, W) contating class logits
     :param gts: uint8 array of shape (b, 1, H, W) containing segmentation labels
+    :param mask: bool array of shape (b, 1, H, W) containing segmentation labels
     """
-    ce_loss = nn.CrossEntropyLoss()(preds, gts[:, 0])
-    dice_loss = compute_segmentation_loss(preds.unsqueeze(2), gts.unsqueeze(1), TverskyScore(0.5, 0.5))
-    return ce_loss + dice_loss
+    # preds = preds[~ignore_map.repeat(1, preds.shape[1], 1, 1, 1)]
+    # ce_loss = nn.CrossEntropyLoss(ignore_index=0)(preds, gts[:, 0])
+    # ce_loss = nn.CrossEntropyLoss()(preds, gts[:, 0])
+    # return ce_loss + dice_loss
+    dice_loss = compute_segmentation_loss(TverskyScore(0.5, 0.5), preds.unsqueeze(2), gts.unsqueeze(2), mask.unsqueeze(2))
+    return dice_loss
 
 
 class UnetModel(SegmentationModel):
@@ -24,11 +28,11 @@ class UnetModel(SegmentationModel):
                                                               patience=2)  # goal: maximize val Dice score
         self.eval_batchsize = eval_batchsize
 
-    def train_one_sample(self, ct_volume, gt_volume, global_step):
+    def train_one_sample(self, ct_volume, gt_volume, mask_volume, global_step):
         self.net.train()
         pred = self.net(ct_volume)
 
-        loss = SliceLoss(pred, gt_volume)
+        loss = SliceLoss(pred, gt_volume, mask_volume)
 
         self.optimizer.zero_grad()
         loss.backward()
