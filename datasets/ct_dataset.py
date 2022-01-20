@@ -63,7 +63,6 @@ def get_datasets(data_root, val_perc, slice_size, resize):
 
     # Split to train val
     train_transforms, val_transforms = get_transforms(slice_size, resize)
-
     n_val = int(len(data_paths) * val_perc)
     tarin_set = CTDataset(data_paths[n_val:], transforms=train_transforms)
     val_set = CTDataset(data_paths[:n_val], transforms=val_transforms)

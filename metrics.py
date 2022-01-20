@@ -26,9 +26,11 @@ class TverskyScore:
         fn = ((1 - pred_mat) * (gt_map)).sum([1,2,3])
 
         denominator = tp + fp * self.fp_weight + fn * self.fn_weight
-        nwhere = gt_map.sum([1,2,3]) == 0
-        if torch.any(nwhere):
-            denominator[nwhere] = tp[nwhere]
+
+        # # perfect score on epty
+        # nwhere = gt_map.sum([1,2,3]) == 0
+        # if torch.any(nwhere):
+        #     denominator[nwhere] = tp[nwhere]
 
         score = (tp + 1e-6) / (denominator + 1e-6)
         score = torch.clip(score, 0, 1)
@@ -127,6 +129,7 @@ if __name__ == '__main__':
     from medpy.metric import dc
     gt = np.random.randint(0, 2, (5,128,128))
     pred = np.random.randint(0, 2, (5,128,128))
+    gt = np.zeros((5,128,128))
 
     score = dc(pred, gt)
     print(score)

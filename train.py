@@ -8,12 +8,6 @@ from tqdm import tqdm
 from evaluate import evaluate
 
 
-def plot_scores(values, path):
-    plt.plot(range(len(values)), values)
-    plt.savefig(path)
-    plt.clf()
-
-
 class plotter:
     def __init__(self, plotting_dir):
         os.makedirs(plotting_dir, exist_ok=True)
@@ -29,14 +23,17 @@ class plotter:
 
     def plot(self):
         for k, v in self.data.items():
-            plot_scores(self.data[k], f'{self.plotting_dir}/{k}.png')
+            plt.plot(range(len(self.data[k])), self.data[k])
+            plt.savefig(f'{self.plotting_dir}/{k}.png')
+            plt.clf()
 
 
 def train_model(model,  dataloaders, device, train_steps, train_dir):
     loss_plotter = plotter(train_dir)
     train_loader, val_loader = dataloaders
 
-    eval_freq = train_steps // 50
+    eval_freq = 1000 #train_steps // 50
+    images_freq = 5000 # train_steps // 10
 
     # Begin training
     pbar = tqdm(unit='Slices')
@@ -52,11 +49,12 @@ def train_model(model,  dataloaders, device, train_steps, train_dir):
 
             slices = ct_volume.shape[0] * ct_volume.shape[-3]
             pbar.update(slices)
-            pbar.set_description(f"Train-step: {step}/{train_steps}, Losses: {[f'{k}: {v:.3f}' for k, v in losses.items()]}, lr: {model.optimizer.param_groups[0]['lr']}")
+            pbar.set_description(f"Train-step: {step}/{train_steps}, Losses: {','.join([f'{k}: {v:.3f}' for k, v in losses.items()])}, lr: {model.optimizer.param_groups[0]['lr']:.10f}")
 
             # Evaluation round
             if step % eval_freq == 0:
-                evaluation_report = evaluate(model, val_loader, device, f"{train_dir}/eval-step-{step}")
+                n_plotted_volumes = 2 if (step > 0 and step % images_freq == 0) else 0
+                evaluation_report = evaluate(model, val_loader, device, f"{train_dir}/eval-step-{step}", n_plotted_volumes)
                 model.step_scheduler(evaluation_report['Dice-non-bg'])
                 evaluation_report.pop("Slice/sec")
                 loss_plotter.register_data(evaluation_report)

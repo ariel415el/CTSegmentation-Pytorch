@@ -156,16 +156,9 @@ def create_dataset(root_dir, spatial_scale=1, min_sizes=(4, 10, 10), crop_params
 
     print(f"Done. Dropped blobs: {dropped_blobs}. Avg spacing: {np.mean(spacings)}")
 
+
 if __name__ == '__main__':
-    raw_data = '/home/ariel/projects/MedicalImageSegmentation/data/LiverTumorSegmentation/raw_data'
-    # # save data as is
-    # create_dataset(raw_data, remove_liver_label=False, spatial_scale=0.25)
-
-    # crop around liver and show only tumor labels
+    import sys
+    raw_data_path = sys.argv[1]
     crop_params = cropping_parameterss(cropping_lable=1, slice_margins=(1, 1, 1), mask_dilation=11)
-    # intencity_params = intencity_parameterss(clip_values=(-100, 400), hist_equalization=True)
-    create_dataset(raw_data, min_sizes=(3, 10, 10), crop_params=crop_params, intencity_params=None)
-
-    # # Crop around tumors
-    # crop_params = cropping_params(cropping_lable=2, slice_margins=(1, 20, 20))
-    # create_dataset(raw_data, remove_liver_label=True, min_sizes=(3, 30, 30), crop_params=crop_params, )
+    create_dataset(raw_data_path, min_sizes=(3, 10, 10), crop_params=crop_params, intencity_params=None)

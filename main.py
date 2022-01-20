@@ -14,7 +14,7 @@ import models
 def get_model(model_name, n_classes):
     if model_name == 'Unet':
         train_steps = 100000
-        batch_size = 8
+        batch_size = 32
         model = models.UnetModel(n_channels=1, n_classes=n_classes, bilinear=True, device=device, eval_batchsize=batch_size)
         slice_size = 1
     elif model_name == 'AdSeg':
@@ -34,7 +34,7 @@ def get_model(model_name, n_classes):
         slice_size = 1
     elif model_name == 'Vnet':
         train_steps = 10000
-        batch_size = 1
+        batch_size = 4
         slice_size = 16
         model = models.VnetModel(n_channels=1, n_classes=n_classes, slice_size=slice_size, device=device)
     else:
@@ -51,12 +51,12 @@ if __name__ == '__main__':
     mode = "train"
     data_path = 'datasets/LiverData_(S-1_MS-(3, 10, 10)_Crop-CL-1_margins-(1, 1, 1)_OB-0.5_MD-11)'
     n_classes = 2
-    resize = 256
+    resize = 128
 
     model, slice_size, batch_size, train_steps = get_model(model_name, n_classes)
     model_dir = f"train_dir/{os.path.basename(data_path)}/{model_name}-{resize}"
 
-    params = dict(batch_size=batch_size, num_workers=4)
+    params = dict(batch_size=batch_size, num_workers=2)
     if mode == 'train':
         dataloaders = get_dataloaders(data_path, val_perc=0.1, params=params, slice_size=slice_size, resize=resize)
         train_model(model, dataloaders, device, train_steps=train_steps, train_dir=model_dir)

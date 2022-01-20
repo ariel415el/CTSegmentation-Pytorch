@@ -9,13 +9,11 @@ from datasets.visualize_data import write_volume_slices
 from metrics import compute_segmentation_score, TverskyScore, compute_IOU
 
 
-def evaluate(model, dataloader, device, outputs_dir, n_plotted_volumes=2):
+def evaluate(model, dataloader, device, outputs_dir, n_plotted_volumes=0):
     model.eval()
 
-    os.makedirs(outputs_dir, exist_ok=True)
-
     total_dice = 0
-    total_iou = 0
+    total_iou = 0   
     total_slices_per_sec = 0
     # iterate over the validation set
     for b_idx, sample in enumerate(dataloader):
@@ -36,8 +34,9 @@ def evaluate(model, dataloader, device, outputs_dir, n_plotted_volumes=2):
         total_iou += iou_score
 
         if n_plotted_volumes is None or b_idx < n_plotted_volumes:
+            os.makedirs(outputs_dir, exist_ok=True)
             dir_path = os.path.join(outputs_dir, f"Case-{case_name}_Dice-{dice_score.mean():.3f}_IOU-{iou_score.mean():.3f}")
-            write_volume_slices(ct_volume[0], [pred_volume.argmax(dim=1)[0], ct_volume[0]], dir_path)
+            write_volume_slices(ct_volume[0], [pred_volume.argmax(dim=1)[0], gt_volume[0]], dir_path)
 
     # Fixes a potential division by zero error
     model.train()

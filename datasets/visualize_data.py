@@ -148,20 +148,20 @@ def visualize_dataset(dataloader, output_dir):
 
 if __name__ == '__main__':
     # visualize original data and its preprocessing
-    # original_data_path = '/home/ariel/projects/MedicalImageSegmentation/data/LiverTumorSegmentation/raw_data'
-    # data_paths = get_data_pathes(original_data_path)
-    # sorted(data_paths)
-    # data_paths = data_paths[:1]
-    #
-    # dataloader = DataLoader(CTDataset(data_paths, transforms=ToTensor()))
-    # visualize_dataset(dataloader, os.path.join(original_data_path, "visualize_data"))
+    original_data_path = '/home/ariel/projects/MedicalImageSegmentation/data/LiverTumorSegmentation/raw_data'
+    data_paths = get_data_pathes(original_data_path)
+    sorted(data_paths)
+    data_paths = data_paths[12:13]
+
+    dataloader = DataLoader(CTDataset(data_paths, transforms=ToTensor()))
+    visualize_dataset(dataloader, os.path.join(original_data_path, "visualize_data"))
 
     # visualize_preprocessing_affects(dataloader, os.path.join(original_data_path, "visualize_preprocessing"))
 
-    # Viuslize dataset
-    data_path = 'datasets/LiverData_(S-1_MS-(3, 10, 10)_Crop-CL-1_margins-(1, 1, 1)_OB-0.5_MD-11)'
-    data_paths = get_data_pathes(data_path)
-    sorted(data_paths)
-    data_paths = data_paths[32:33]
-
-    visualize_augmentations(data_paths, os.path.join(data_path, "visualize_augmentations"))
+    # # Viuslize dataset
+    # data_path = 'datasets/LiverData_(S-1_MS-(3, 10, 10)_Crop-CL-1_margins-(1, 1, 1)_OB-0.5_MD-11)'
+    # data_paths = get_data_pathes(data_path)
+    # sorted(data_paths)
+    # data_paths = data_paths[32:33]
+    #
+    # visualize_augmentations(data_paths, os.path.join(data_path, "visualize_augmentations"))
