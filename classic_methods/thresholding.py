@@ -1,4 +1,5 @@
 import os
+import sys
 
 import numpy as np
 import torch
@@ -7,6 +8,7 @@ import scipy.ndimage.morphology
 from scipy.ndimage.filters import gaussian_filter
 import matplotlib.pyplot as plt
 
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),"..")))
 from datasets.data_utils import read_volume
 from datasets.visualize_data import overlay, write_volume_slices
 from metrics import TverskyScore
@@ -223,8 +225,8 @@ if __name__ == '__main__':
 
     # Analyze entire cases
     for case in [19, 50, 92, 23, 28]:
-        analyze_prediction_process(data_path, case=case, axis_slice=None, t=90, output_dir="debug")
+        analyze_prediction_process(data_path, case=case, axis_slice=None, t=90, output_dir="debug_volumes")
 
     # Run full test
     test_cases = [19, 76, 50, 92, 88, 122, 100, 71, 23, 28, 9, 119, 39]
-    run_on_validation_set(data_path, test_cases, t=120)
+    run_on_validation_set(data_path, test_cases, t=120, out_dir="debug_test")
