@@ -28,7 +28,7 @@ class plotter:
             plt.clf()
 
 
-def train_model(model,  dataloaders, device, train_steps, train_dir):
+def train_model(model,  dataloaders, device, train_steps, train_dir, ignore_background):
     loss_plotter = plotter(train_dir)
     train_loader, val_loader = dataloaders
 
@@ -42,7 +42,7 @@ def train_model(model,  dataloaders, device, train_steps, train_dir):
         for sample in train_loader:
             ct_volume = sample['ct'].to(device=device, dtype=torch.float32)
             gt_volume = sample['gt'].to(device=device, dtype=torch.long)
-            mask_volume = sample['mask'].to(device=device)
+            mask_volume = (sample['mask'] if ignore_background else torch.ones_like(sample['mask'])).to(device=device)
 
             losses = model.train_one_sample(ct_volume, gt_volume, mask_volume, step)
             loss_plotter.register_data(losses)

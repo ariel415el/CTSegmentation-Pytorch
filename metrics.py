@@ -17,7 +17,6 @@ class TverskyScore:
         :return: scores array of size b
         """
 
-        # gt_map.requires_grad=True
         pred_mat = pred_mat * mask
         gt_map = gt_map * mask
 

@@ -24,8 +24,7 @@ class UnetModel(SegmentationModel):
         super(UnetModel, self).__init__(n_channels, n_classes, device)
         self.net = UNet(n_channels, n_classes, bilinear=bilinear).to(device)
         self.optimizer = optim.RMSprop(self.net.parameters(), lr=0.0000001, weight_decay=1e-8, momentum=0.9)
-        self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'max',
-                                                              patience=2)  # goal: maximize val Dice score
+        self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'max', patience=1)  # goal: maximize val Dice score
         self.eval_batchsize = eval_batchsize
 
     def train_one_sample(self, ct_volume, gt_volume, mask_volume, global_step):

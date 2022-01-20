@@ -42,24 +42,27 @@ def get_model(model_name, n_classes):
 
     return model, slice_size, batch_size, train_steps
 
+
 if __name__ == '__main__':
     random.seed(0)
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     # device = torch.device('cpu')
 
-    model_name = 'Unet'
     mode = "train"
-    data_path = 'datasets/LiverData_(S-1_MS-(3, 10, 10)_Crop-CL-1_margins-(1, 1, 1)_OB-0.5_MD-11)'
+    model_name = 'Unet'
     n_classes = 2
     resize = 128
+    augment_data = False
+    ignore_background = False
+    data_path = 'datasets/LiverData_(S-1_MS-(3, 10, 10)_Crop-CL-1_margins-(1, 1, 1)_OB-0.5_MD-11)'
 
     model, slice_size, batch_size, train_steps = get_model(model_name, n_classes)
-    model_dir = f"train_dir/{os.path.basename(data_path)}/{model_name}-{resize}"
+    model_dir = f"train_dir/{os.path.basename(data_path)}/{model_name}-{resize}{'_augment' if augment_data else ''}{'_mask_bg' if ignore_background else ''}"
 
-    params = dict(batch_size=batch_size, num_workers=2)
+    params = dict(batch_size=batch_size, num_workers=0)  # dataset loaded into memory no need for workers
     if mode == 'train':
-        dataloaders = get_dataloaders(data_path, val_perc=0.1, params=params, slice_size=slice_size, resize=resize)
-        train_model(model, dataloaders, device, train_steps=train_steps, train_dir=model_dir)
+        dataloaders = get_dataloaders(data_path, val_perc=0.1, params=params, slice_size=slice_size, resize=resize, augment_data=augment_data)
+        train_model(model, dataloaders, device, train_steps=train_steps, train_dir=model_dir, ignore_background=ignore_background)
 
     if mode == 'test':
         latest_ckpt = max(glob.glob(f'{model_dir}/*.pth'), key=os.path.getctime)

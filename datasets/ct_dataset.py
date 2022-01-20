@@ -37,17 +37,25 @@ class SliceVolume(object):
         return image, segmap
 
 
-def get_transforms(slice_size, resize):
-    train_transforms = [
-        SliceVolume(slice_size=slice_size),
-        augmentations.ElasticDeformation3D(sigma=7, p=0.1),
-        augmentations.RandomCrop(p=1),
-        augmentations.random_clip((-200, -50), (256, 1024)),
-        ToTensor(),
-        augmentations.Resize(resize),
-        augmentations.random_flips(p=1),
-        augmentations.random_noise(p=0.5, std=0.25),
-    ]
+def get_transforms(slice_size, resize, augment_data):
+    if augment_data:
+        train_transforms = [
+            SliceVolume(slice_size=slice_size),
+            augmentations.ElasticDeformation3D(sigma=7, p=0.1),
+            augmentations.RandomCrop(p=1),
+            augmentations.random_clip((-200, -50), (256, 1024)),
+            ToTensor(),
+            augmentations.Resize(resize),
+            augmentations.random_flips(p=1),
+            augmentations.random_noise(p=0.5, std=0.25),
+        ]
+    else:
+        train_transforms = [
+            SliceVolume(slice_size=slice_size),
+            ToTensor(),
+            augmentations.random_clip(-100, 400),
+            augmentations.Resize(resize)
+        ]
 
     val_transforms = [
         ToTensor(),
@@ -57,12 +65,15 @@ def get_transforms(slice_size, resize):
     return transforms.Compose(train_transforms), transforms.Compose(val_transforms)
 
 
-def get_datasets(data_root, val_perc, slice_size, resize):
+def get_datasets(data_root, val_perc, slice_size, resize, augment_data):
+    """
+    Gather and split data paths and create datasets with according transforms
+    """
     data_paths = get_data_pathes(data_root)
     random.shuffle(data_paths)
 
     # Split to train val
-    train_transforms, val_transforms = get_transforms(slice_size, resize)
+    train_transforms, val_transforms = get_transforms(slice_size, resize, augment_data)
     n_val = int(len(data_paths) * val_perc)
     tarin_set = CTDataset(data_paths[n_val:], transforms=train_transforms)
     val_set = CTDataset(data_paths[:n_val], transforms=val_transforms)
@@ -70,14 +81,15 @@ def get_datasets(data_root, val_perc, slice_size, resize):
     return tarin_set, val_set
 
 
-def get_dataloaders(data_root, val_perc, params, slice_size=1, resize=128):
+def get_dataloaders(data_root, val_perc, params, slice_size=1, resize=128, augment_data=False):
     """
     Get dataloaders for training and evaluation.
     train_by_volume: 3d/2d training returns full CT volumes (batch_size, slices, H, W) or (batch_size, H, W)
     """
-    train_set, val_set = get_datasets(data_root, val_perc, slice_size, resize)
+    train_set, val_set = get_datasets(data_root, val_perc, slice_size, resize, augment_data)
 
     train_loader = DataLoader(train_set, shuffle=True, **params)
+
     params['batch_size'] = 1
     val_loader = DataLoader(val_set, shuffle=True, **params)
 
@@ -85,6 +97,9 @@ def get_dataloaders(data_root, val_perc, params, slice_size=1, resize=128):
 
 
 class CTDataset(Dataset):
+    """
+    Dataset of entire CT volumes.
+    """
     def __init__(self, data_paths, transforms=None, min_n_slices=None):
         self.transforms = transforms
         self.cts = []

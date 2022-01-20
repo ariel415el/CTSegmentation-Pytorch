@@ -9,9 +9,9 @@ from models.generic_model import SegmentationModel
 
 def VolumeLoss(preds, gts, mask):
     """
-    :param preds: float array of shape (1, n_class, slices, H, W) contating class logits
-    :param gts: uint8 array of shape (1, slices, H, W) containing segmentation labels
-    :param mask: bool array of shape (b, 1, H, W) containing segmentation labels
+    :param preds: float array of shape (b, n_class, slices, H, W) contating class logits
+    :param gts: uint8 array of shape (b, slices, H, W) containing segmentation labels
+    :param mask: bool array of shape (b, slices, H, W) containing segmentation labels
     """
     dice_loss = compute_segmentation_loss(TverskyScore(0.5, 0.5), preds, gts.unsqueeze(1), mask.unsqueeze(1))
     return dice_loss
@@ -20,7 +20,7 @@ def VolumeLoss(preds, gts, mask):
 class VnetModel(SegmentationModel):
     def __init__(self, n_channels, n_classes, slice_size=16, device=torch.device('cpu')):
         super(VnetModel, self).__init__(n_channels, n_classes, device)
-        self.net = VNet(n_channels, n_classes, d=8).to(device)
+        self.net = VNet(n_channels, n_classes, d=16).to(device)
         self.slice_size = slice_size
         self.optimizer = optim.RMSprop(self.net.parameters(), lr=0.0001, weight_decay=1e-8, momentum=0.9)
         self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'max', patience=2)  # goal: maximize val Dice score
@@ -39,6 +39,8 @@ class VnetModel(SegmentationModel):
 
     def step_scheduler(self, evaluation_score):
         self.scheduler.step(evaluation_score)
+        # for g in self.optimizer.param_groups:
+        #     g['lr'] *= 0.95
 
     def predict_volume(self, ct_volume, overlap=None):
         """
