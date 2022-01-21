@@ -1,8 +1,6 @@
 import os
 from time import time
 
-from torchvision.utils import save_image
-
 import torch
 
 from datasets.visualize_data import write_volume_slices
@@ -16,6 +14,7 @@ def evaluate(model, dataloader, device, outputs_dir, n_plotted_volumes=0):
     total_iou = 0   
     total_slices_per_sec = 0
     # iterate over the validation set
+    results_report = dict()
     for b_idx, sample in enumerate(dataloader):
         ct_volume = sample['ct'].to(device=device, dtype=torch.float32)
         gt_volume = sample['gt'].to(device=device, dtype=torch.long)
@@ -27,25 +26,25 @@ def evaluate(model, dataloader, device, outputs_dir, n_plotted_volumes=0):
         pred_volume = model.predict_volume(ct_volume)
         total_slices_per_sec += ct_volume.shape[-3] / (time() - start)
 
-        dice_score = compute_segmentation_score(TverskyScore(0.5, 0.5), pred_volume, gt_volume.unsqueeze(1), mask_volume.unsqueeze(1), return_per_class=True)
-        total_dice += dice_score
+        dice_per_class = compute_segmentation_score(TverskyScore(0.5, 0.5), pred_volume, gt_volume.unsqueeze(1), mask_volume.unsqueeze(1), return_per_class=True)
+        total_dice += dice_per_class
 
         iou_score = compute_segmentation_score(compute_IOU, pred_volume, gt_volume.unsqueeze(1), mask_volume.unsqueeze(1), return_per_class=True)
         total_iou += iou_score
 
         if n_plotted_volumes is None or b_idx < n_plotted_volumes:
             os.makedirs(outputs_dir, exist_ok=True)
-            dir_path = os.path.join(outputs_dir, f"Case-{case_name}_Dice-{dice_score.mean():.3f}_IOU-{iou_score.mean():.3f}")
+            dir_path = os.path.join(outputs_dir, f"Case-{case_name}_Dice-{[f'{x:.3f}' for x in dice_per_class]}")
             write_volume_slices(ct_volume[0], [pred_volume.argmax(dim=1)[0], gt_volume[0]], dir_path)
 
     # Fixes a potential division by zero error
     model.train()
-    results = {"Slice/sec": total_slices_per_sec / len(dataloader)}
     total_dice /= len(dataloader)
     total_iou /= len(dataloader)
-    results[f"Dice-non-bg"] = total_dice[1:].mean()
+    results_report.update({"Slice/sec": total_slices_per_sec / len(dataloader)})
+    results_report[f"Dice-non-bg"] = total_dice[1:].mean()
     for i in range(1, len(total_dice)):
-        results[f"Dice-class-{i}"] = total_dice[i].item()
-        results[f"IOU-class-{i}"] = total_iou[i].item()
-    return results
+        results_report[f"Dice-class-{i}"] = total_dice[i].item()
+        results_report[f"IOU-class-{i}"] = total_iou[i].item()
+    return results_report
 

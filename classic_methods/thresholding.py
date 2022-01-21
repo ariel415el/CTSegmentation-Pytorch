@@ -130,7 +130,7 @@ def run_on_validation_set(data_root, test_cases, t, out_dir=None):
 
 
 if __name__ == '__main__':
-    data_path = '/home/ariel/projects/MedicalImageSegmentation/data/LiverTumorSegmentation/raw_data'
+    data_path = '/home/ariel/projects/MedicalImageSegmentation/data/LiverTumorSegmentation/train'
 
     # Run full test
     test_cases = [19, 76, 50, 92, 88, 122, 100, 71, 23, 28, 9, 119, 39]

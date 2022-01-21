@@ -28,16 +28,16 @@ class plotter:
             plt.clf()
 
 
-def train_model(model,  dataloaders, device, train_steps, train_dir, ignore_background):
+def train_model(model, dataloaders, device, train_steps, train_dir, ignore_background):
     loss_plotter = plotter(train_dir)
     train_loader, val_loader = dataloaders
 
-    eval_freq = 1000 #train_steps // 50
-    images_freq = 5000 # train_steps // 10
+    eval_freq = train_loader.dataset.n_slices // train_loader.batch_size # number of batches in epochs
 
     # Begin training
     pbar = tqdm(unit='Slices')
     step = 0
+    model.train()
     while step < train_steps:
         for sample in train_loader:
             ct_volume = sample['ct'].to(device=device, dtype=torch.float32)
@@ -53,13 +53,12 @@ def train_model(model,  dataloaders, device, train_steps, train_dir, ignore_back
 
             # Evaluation round
             if step % eval_freq == 0:
-                n_plotted_volumes = 2 if (step > 0 and step % images_freq == 0) else 0
-                evaluation_report = evaluate(model, val_loader, device, f"{train_dir}/eval-step-{step}", n_plotted_volumes)
+                evaluation_report = evaluate(model, val_loader, device, f"{train_dir}/eval-step-{step}", n_plotted_volumes=15)
                 model.step_scheduler(evaluation_report['Dice-non-bg'])
                 evaluation_report.pop("Slice/sec")
                 loss_plotter.register_data(evaluation_report)
                 loss_plotter.plot()
 
-                torch.save(model.get_state_dict(), f'{train_dir}/latest.pth')
+                torch.save(model.get_state_dict(), f'{train_dir}/step-{step}.pth')
 
             step += 1

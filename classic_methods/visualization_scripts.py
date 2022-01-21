@@ -116,7 +116,7 @@ def analyze_prediction_process(data_path, case, axis_slice, t, output_dir):
 
 
 if __name__ == '__main__':
-    data_path = '/home/ariel/projects/MedicalImageSegmentation/data/LiverTumorSegmentation/raw_data'
+    data_path = '/home/ariel/projects/MedicalImageSegmentation/data/LiverTumorSegmentation/train'
 
     produce_hists(data_path, [19, 50, 92, 23, 28])
 

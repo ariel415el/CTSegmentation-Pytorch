@@ -148,7 +148,7 @@ def visualize_dataset(dataloader, output_dir):
 
 if __name__ == '__main__':
     # visualize original data and its preprocessing
-    original_data_path = '/home/ariel/projects/MedicalImageSegmentation/data/LiverTumorSegmentation/raw_data'
+    original_data_path = '/home/ariel/projects/MedicalImageSegmentation/data/LiverTumorSegmentation/train'
     data_paths = get_data_pathes(original_data_path)
     sorted(data_paths)
     data_paths = data_paths[12:13]

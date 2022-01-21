@@ -11,19 +11,17 @@ def SliceLoss(preds, gts, mask):
     :param gts: uint8 array of shape (b, 1, H, W) containing segmentation labels
     :param mask: bool array of shape (b, 1, H, W) containing segmentation labels
     """
-    # preds = preds[~ignore_map.repeat(1, preds.shape[1], 1, 1, 1)]
-    # ce_loss = nn.CrossEntropyLoss(ignore_index=0)(preds, gts[:, 0])
-    # ce_loss = nn.CrossEntropyLoss()(preds, gts[:, 0])
-    # return ce_loss + dice_loss
     dice_loss = compute_segmentation_loss(TverskyScore(0.5, 0.5), preds.unsqueeze(2), gts.unsqueeze(2), mask.unsqueeze(2))
-    return dice_loss
+    ce_loss = nn.CrossEntropyLoss()(preds, gts[:, 0])
+    # return dice_loss
+    return ce_loss + dice_loss
 
 
 class UnetModel(SegmentationModel):
     def __init__(self, n_channels, n_classes, bilinear=True, device=torch.device('cpu'), eval_batchsize=1):
         super(UnetModel, self).__init__(n_channels, n_classes, device)
         self.net = UNet(n_channels, n_classes, bilinear=bilinear).to(device)
-        self.optimizer = optim.RMSprop(self.net.parameters(), lr=0.0000001, weight_decay=1e-8, momentum=0.9)
+        self.optimizer = optim.RMSprop(self.net.parameters(), lr=0.00000005, weight_decay=1e-8, momentum=0.9)
         self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'max', patience=1)  # goal: maximize val Dice score
         self.eval_batchsize = eval_batchsize
 
@@ -41,20 +39,6 @@ class UnetModel(SegmentationModel):
 
     def step_scheduler(self, evaluation_score):
         self.scheduler.step(evaluation_score)
-
-    # def predict_volume(self, ct_volume):
-    #     """
-    #     ct_volume.shape = (1, slices, H, W)
-    #     returns prdiction of shape (1, n_classes, slices, H, W)
-    #     """
-    #     self.net.eval()
-    #     pred_volume = []
-    #     with torch.no_grad():
-    #         for i in range(ct_volume.shape[1]):
-    #             image = ct_volume[:, i]
-    #             pred_volume.append(self.net(image.unsqueeze(1)))
-    #     pred_volume = torch.stack(pred_volume, dim=2)
-    #     return pred_volume
 
     def predict_volume(self, ct_volume):
         """
