@@ -80,8 +80,25 @@ def manipulate_CT_intencities(ct_array, params):
 
     return ct_array
 
+def get_LiTS2017_paths(data_root):
+    ct_files = sorted(os.listdir(os.path.join(data_root, 'ct')))
+    segmentation_files = sorted(os.listdir(os.path.join(data_root, 'seg')))
 
-def create_dataset(root_dir, spatial_scale=1, min_sizes=(4, 10, 10), crop_params=None, intencity_params=None):
+    ct_files = [os.path.join(data_root, 'ct', x) for x in ct_files]
+    segmentation_files = [os.path.join(data_root, 'seg', x) for x in segmentation_files]
+
+    data_paths = list(zip(ct_files, segmentation_files))
+
+    return data_paths
+
+def get_KiTS2019_paths(data_root):
+    return [
+        (os.path.join(data_root, case, 'imaging.nii.gz'), os.path.join(data_root, case, 'segmentation.nii.gz'))
+         for case in os.listdir(data_root)
+    ]
+
+
+def create_dataset(data_paths, min_sizes=(4, 10, 10), normalize_axial_mm=None, crop_params=None, intencity_params=None):
     """"
     Create a dataset of 3d crops of tumors with margins
     param: crop_params: optional parameters for cropped version of the data
@@ -90,7 +107,8 @@ def create_dataset(root_dir, spatial_scale=1, min_sizes=(4, 10, 10), crop_params
     #### param: slice_size_mm: down/up sample in z dimension to normalize the real world size between CT slices to number of mm
 
     """
-    processed_dir = f"LiverData_(S-{spatial_scale}_MS-{min_sizes}" \
+    processed_dir = f"{dataset_name}_(MS-{min_sizes}" \
+                    + (f"_MM-{normalize_axial_mm}" if normalize_axial_mm is not None else '') \
                     + (f"_Crop-{crop_params}" if crop_params is not None else '') \
                     + (f"_Intencity-{intencity_params}" if intencity_params is not None else '') \
                     + ")"
@@ -102,11 +120,11 @@ def create_dataset(root_dir, spatial_scale=1, min_sizes=(4, 10, 10), crop_params
 
     dropped_blobs = 0
     spacings = []
-    for ct_filename in tqdm(os.listdir(os.path.join(root_dir, 'ct'))):
+    for ct_filename, gt_fname in tqdm(data_paths):
         # Read data
-        ct = sitk.ReadImage(os.path.join(root_dir, 'ct', ct_filename), sitk.sitkInt16)
+        ct = sitk.ReadImage(ct_filename, sitk.sitkInt16)
         ct_array = sitk.GetArrayFromImage(ct)
-        seg = sitk.ReadImage(os.path.join(root_dir, 'seg', ct_filename.replace('volume', 'segmentation')), sitk.sitkInt16)
+        seg = sitk.ReadImage(gt_fname, sitk.sitkInt8)
         seg_array = sitk.GetArrayFromImage(seg)
         assert (seg_array.shape == ct_array.shape)
 
@@ -124,9 +142,8 @@ def create_dataset(root_dir, spatial_scale=1, min_sizes=(4, 10, 10), crop_params
         for blob_idx, (ct_array, seg_array, location_string) in enumerate(all_blobs):
 
             # Resample
-            if spatial_scale != 1:
-                # new_dims = (ct.GetSpacing()[-1] / slice_size_mm, spatial_scale, spatial_scale)
-                new_dims = (1, spatial_scale, spatial_scale)
+            if normalize_axial_mm is not None:
+                new_dims = (ct.GetSpacing()[-1] / normalize_axial_mm, 1, 1)
                 ct_array = ndimage.zoom(ct_array, new_dims, order=3)
                 seg_array = ndimage.zoom(seg_array, new_dims, order=0)
 
@@ -143,8 +160,6 @@ def create_dataset(root_dir, spatial_scale=1, min_sizes=(4, 10, 10), crop_params
                 fname += f"-({location_string}).nii"
             else:
                 fname += f"-{blob_idx}.nii"
-            # np.save(os.path.join(new_ct_dir, fname), ct_array)
-            # np.save(os.path.join(new_seg_dir, fname).replace(f'volume', f'segmentation'), seg_array)
 
             new_ct = sitk.GetImageFromArray(ct_array)
             new_ct.SetSpacing(ct.GetSpacing())
@@ -158,7 +173,11 @@ def create_dataset(root_dir, spatial_scale=1, min_sizes=(4, 10, 10), crop_params
 
 
 if __name__ == '__main__':
-    import sys
-    raw_data_path = sys.argv[1]
+    dataset_name = 'KiTS2019'
+    # dataset_name = 'Lits2017'
+    if dataset_name == 'KiTS2019':
+        data_paths = get_KiTS2019_paths('/home/ariel/projects/MedicalImageSegmentation/data/KidneyTumorSegmentation2019/train')
+    elif dataset_name == 'Lits2017':
+        data_paths = get_LiTS2017_paths('/home/ariel/projects/MedicalImageSegmentation/data/LiverTumorSegmentation/train')
     crop_params = cropping_parameterss(cropping_lable=1, slice_margins=(1, 1, 1), mask_dilation=11)
-    create_dataset(raw_data_path, min_sizes=(3, 10, 10), crop_params=crop_params, intencity_params=None)
+    create_dataset(data_paths, min_sizes=(3, 15, 15), normalize_axial_mm=2, crop_params=crop_params, intencity_params=None)

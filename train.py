@@ -6,6 +6,7 @@ from matplotlib import pyplot as plt
 from tqdm import tqdm
 
 from evaluate import evaluate
+from config import *
 
 
 class plotter:
@@ -28,11 +29,9 @@ class plotter:
             plt.clf()
 
 
-def train_model(model, dataloaders, device, train_steps, train_dir, ignore_background):
+def train_model(model, dataloaders, train_dir):
     loss_plotter = plotter(train_dir)
     train_loader, val_loader = dataloaders
-
-    eval_freq = train_loader.dataset.n_slices // train_loader.batch_size # number of batches in epochs
 
     # Begin training
     pbar = tqdm(unit='Slices')
@@ -53,7 +52,7 @@ def train_model(model, dataloaders, device, train_steps, train_dir, ignore_backg
 
             # Evaluation round
             if step % eval_freq == 0:
-                evaluation_report = evaluate(model, val_loader, device, f"{train_dir}/eval-step-{step}", n_plotted_volumes=15)
+                evaluation_report = evaluate(model, val_loader, f"{train_dir}/eval-step-{step}")
                 model.step_scheduler(evaluation_report['Dice-non-bg'])
                 evaluation_report.pop("Slice/sec")
                 loss_plotter.register_data(evaluation_report)

@@ -5,9 +5,10 @@ import torch
 
 from datasets.visualize_data import write_volume_slices
 from metrics import compute_segmentation_score, TverskyScore, compute_IOU
+from config import device
 
 
-def evaluate(model, dataloader, device, outputs_dir, n_plotted_volumes=0):
+def evaluate(model, dataloader, outputs_dir=None):
     model.eval()
 
     total_dice = 0
@@ -32,8 +33,8 @@ def evaluate(model, dataloader, device, outputs_dir, n_plotted_volumes=0):
         iou_score = compute_segmentation_score(compute_IOU, pred_volume, gt_volume.unsqueeze(1), mask_volume.unsqueeze(1), return_per_class=True)
         total_iou += iou_score
 
-        if n_plotted_volumes is None or b_idx < n_plotted_volumes:
-            os.makedirs(outputs_dir, exist_ok=True)
+        # plot volume
+        if outputs_dir:
             dir_path = os.path.join(outputs_dir, f"Case-{case_name}_Dice-{[f'{x:.3f}' for x in dice_per_class]}")
             write_volume_slices(ct_volume[0], [pred_volume.argmax(dim=1)[0], gt_volume[0]], dir_path)
 

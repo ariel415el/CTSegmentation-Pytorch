@@ -13,11 +13,11 @@ class DoubleConv(nn.Module):
         if not mid_channels:
             mid_channels = out_channels
         self.double_conv = nn.Sequential(
-            nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding=1, bias=bias),
-            nn.BatchNorm2d(mid_channels),
+            nn.Conv3d(in_channels, mid_channels, kernel_size=3, padding=1, bias=bias),
+            nn.BatchNorm3d(mid_channels),
             nn.ReLU(inplace=True),
-            nn.Conv2d(mid_channels, out_channels, kernel_size=3, padding=1, bias=bias),
-            nn.BatchNorm2d(out_channels),
+            nn.Conv3d(mid_channels, out_channels, kernel_size=3, padding=1, bias=bias),
+            nn.BatchNorm3d(out_channels),
             nn.ReLU(inplace=True)
         )
 
@@ -31,8 +31,8 @@ class Down(nn.Module):
     def __init__(self, in_channels, out_channels, bias=False):
         super().__init__()
         self.maxpool_conv = nn.Sequential(
-            nn.MaxPool2d(2),
-            DoubleConv(in_channels, out_channels, bias=bias)
+            nn.MaxPool3d(kernel_size=2, stride=2, padding=0),
+            DoubleConv(in_channels, out_channels, bias)
         )
 
     def forward(self, x):
@@ -42,15 +42,15 @@ class Down(nn.Module):
 class Up(nn.Module):
     """Upscaling then double conv"""
 
-    def __init__(self, in_channels, out_channels, bilinear=True):
+    def __init__(self, in_channels, out_channels, trilinear=True):
         super().__init__()
 
         # if bilinear, use the normal convolutions to reduce the number of channels
-        if bilinear:
-            self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
+        if trilinear:
+            self.up = nn.Upsample(scale_factor=2, mode='trilinear', align_corners=True)
             self.conv = DoubleConv(in_channels, out_channels, in_channels // 2)
         else:
-            self.up = nn.ConvTranspose2d(in_channels, in_channels // 2, kernel_size=2, stride=2)
+            self.up = nn.ConvTranspose3d(in_channels, in_channels // 2, kernel_size=2, stride=2)
             self.conv = DoubleConv(in_channels, out_channels)
 
     def forward(self, x1, x2):
@@ -71,33 +71,33 @@ class Up(nn.Module):
 class OutConv(nn.Module):
     def __init__(self, in_channels, out_channels):
         super(OutConv, self).__init__()
-        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=1)
+        self.conv = nn.Conv3d(in_channels, out_channels, kernel_size=1)
 
     def forward(self, x):
         return self.conv(x)
 
 
-class UNet(nn.Module):
-    def __init__(self, n_channels, n_classes, bilinear=True, bias=False):
-        super(UNet, self).__init__()
+class UNet3D(nn.Module):
+    def __init__(self, n_channels, n_classes, trilinear=True, bias=False):
+        super(UNet3D, self).__init__()
         self.n_channels = n_channels
         self.n_classes = n_classes
-        self.bilinear = bilinear
+        self.trilinear = trilinear
 
-        self.inc = DoubleConv(n_channels, 64, bias=bias)
+        self.inc = DoubleConv(n_channels, 64, bias)
         self.down1 = Down(64, 128, bias)
         self.down2 = Down(128, 256, bias)
         self.down3 = Down(256, 512, bias)
-        factor = 2 if bilinear else 1
+        factor = 2 if trilinear else 1
         self.down4 = Down(512, 1024 // factor, bias)
-        self.up1 = Up(1024, 512 // factor, bilinear)
-        self.up2 = Up(512, 256 // factor, bilinear)
-        self.up3 = Up(256, 128 // factor, bilinear)
-        self.up4 = Up(128, 64, bilinear)
+        self.up1 = Up(1024, 512 // factor, trilinear)
+        self.up2 = Up(512, 256 // factor, trilinear)
+        self.up3 = Up(256, 128 // factor, trilinear)
+        self.up4 = Up(128, 64, trilinear)
         self.outc = OutConv(64, n_classes)
 
     def forward(self, x):
-        x1 = self.inc(x)
+        x1 = self.inc(x.unsqueeze(1))
         x2 = self.down1(x1)
         x3 = self.down2(x2)
         x4 = self.down3(x3)
@@ -111,36 +111,7 @@ class UNet(nn.Module):
 
 
 if __name__ == '__main__':
-    net = UNet(1,2)
+    net = UNet3D(1,2)
     net.eval()
-    x1 = torch.zeros((1,1,16,16))
-    x2 = torch.zeros((1,1,16,16))
-
-    input_batch = torch.cat([x1,x2], dim=0)
-    input_tile_hor = torch.cat([x1,x2], dim=-1)
-    input_tile_ver = torch.cat([x1,x2], dim=-2)
-    print(input_batch.shape, input_tile_hor.shape, input_tile_ver.shape)
-
-    output_batch = net(input_batch)
-    output_tile_hor = net(input_tile_hor)
-    output_tile_ver = net(input_tile_ver)
-    print(output_batch.shape, output_tile_hor.shape, output_tile_ver.shape)
-
-    x1_batch = output_batch[0].unsqueeze(0)
-    x2_batch = output_batch[1].unsqueeze(0)
-
-    x1_tile_hor = output_tile_hor[:, :, :, :16]
-    x2_tile_hor = output_tile_hor[:, :, :, 16:]
-
-    x1_tile_ver = output_tile_ver[:, :, :16]
-    x2_tile_ver = output_tile_ver[:, :, 16:]
-
-    # x1_1 = torch.cat([output_1[0].unsqueeze(0), output_1[1].unsqueeze(0)], dim=-1)
-
-    print(x1_batch.shape, x2_batch.shape, x1_tile_hor.shape, x2_tile_hor.shape, x1_tile_ver.shape, x2_tile_ver.shape)
-
-    diff1 = torch.abs(x1_batch - x1_tile_hor)
-    diff2 = torch.abs(x1_batch - x1_tile_ver)
-    diff3 = torch.abs(x1_tile_hor - x1_tile_ver)
-
-    print(diff1.sum(), diff2.sum(), diff3.sum())
+    x1 = torch.zeros((2,16,32,32))
+    print(net(x1).shape)

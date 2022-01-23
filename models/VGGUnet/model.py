@@ -1,7 +1,7 @@
 import torch
 from torch import nn, optim
-from models.Unet.net import UNet
 from metrics import compute_segmentation_loss, TverskyScore
+from models.VGGUnet.net import VGGUNet
 from models.generic_model import SegmentationModel
 
 
@@ -17,17 +17,18 @@ def SliceLoss(preds, gts, mask):
     return ce_loss + dice_loss
 
 
-class UnetModel(SegmentationModel):
-    def __init__(self, n_channels, n_classes, lr, bilinear=True, device=torch.device('cpu'), eval_batchsize=1):
-        super(UnetModel, self).__init__(n_channels, n_classes, device)
-        self.net = UNet(n_channels, n_classes, bilinear=bilinear).to(device)
+class VGGUnetModel(SegmentationModel):
+    def __init__(self, n_channels, n_classes, lr, device=torch.device('cpu'), eval_batchsize=1):
+        assert n_channels == 1
+        super(VGGUnetModel, self).__init__(n_channels, n_classes, device)
+        self.net = VGGUNet(n_classes).to(device)
         self.optimizer = optim.RMSprop(self.net.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
         self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'max', patience=2)  # goal: maximize val Dice score
         self.eval_batchsize = eval_batchsize
 
     def train_one_sample(self, ct_volume, gt_volume, mask_volume, global_step):
-        self.net.train()
-        pred = self.net(ct_volume)
+        self.train()
+        pred = self.net(ct_volume.repeat(1, 3, 1, 1))
 
         loss = SliceLoss(pred, gt_volume, mask_volume)
 
@@ -52,7 +53,7 @@ class UnetModel(SegmentationModel):
         with torch.no_grad():
             i = 0
             while i < S:
-                pred_volume = self.net(ct_volume[i: i + self.eval_batchsize])
+                pred_volume = self.net(ct_volume[i: i + self.eval_batchsize].repeat(1, 3, 1, 1))
                 pred_volumes.append(pred_volume)
                 i += self.eval_batchsize
 

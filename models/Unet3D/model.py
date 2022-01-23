@@ -1,6 +1,6 @@
 import torch
 
-from models.Vnet.net import VNet
+from models.Unet3D.net import UNet3D
 from metrics import compute_segmentation_loss, TverskyScore
 from torch import optim
 
@@ -17,10 +17,10 @@ def VolumeLoss(preds, gts, mask):
     return dice_loss
 
 
-class VnetModel(SegmentationModel):
+class UNet3DModel(SegmentationModel):
     def __init__(self, n_channels, n_classes, slice_size=16, lr=0.0001, device=torch.device('cpu')):
-        super(VnetModel, self).__init__(n_channels, n_classes, device)
-        self.net = VNet(n_channels, n_classes, d=16).to(device)
+        super(UNet3DModel, self).__init__(n_channels, n_classes, device)
+        self.net = UNet3D(n_channels, n_classes).to(device)
         self.slice_size = slice_size
         self.optimizer = optim.RMSprop(self.net.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
         self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'max', patience=2)  # goal: maximize val Dice score

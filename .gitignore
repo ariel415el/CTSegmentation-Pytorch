@@ -1,6 +1,7 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
-datasets/LiverData_*
+datasets/LiTS2017*/
+datasets/KiTS2019*/
 visualize_augmentations
 .idea
 train_dir*/
