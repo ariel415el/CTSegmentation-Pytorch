@@ -1,6 +1,7 @@
 import os
 from collections import defaultdict
 
+import numpy as np
 import torch
 from matplotlib import pyplot as plt
 from tqdm import tqdm
@@ -14,17 +15,23 @@ class plotter:
         os.makedirs(plotting_dir, exist_ok=True)
         self.plotting_dir = plotting_dir
         self.data = defaultdict(list)
+        self.data_means = defaultdict(list)
         self.n = 0
 
     def register_data(self, data):
         self.n += 1
 
         for k, v in data.items():
-            self.data[k].append(v)
+            self.data[k].append(float(v))
 
     def plot(self):
         for k, v in self.data.items():
-            plt.plot(range(len(self.data[k])), self.data[k])
+            last_mean = np.mean(self.data[k] if len(self.data[k]) < 100 else self.data[k][-100:], label=k)
+            self.data_means[k].append(last_mean)
+            nvalues = len(self.data[k])
+            plt.plot(range(nvalues), self.data[k])
+            plt.plot(np.linspace(0, nvalues-1, len(self.data_means[k])), self.data_means[k], label="avg-last-100")
+            plt.legend()
             plt.savefig(f'{self.plotting_dir}/{k}.png')
             plt.clf()
 

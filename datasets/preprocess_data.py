@@ -53,33 +53,6 @@ def crop_to_boxes_of_interset_cc(image_volume, labels_volume, params):
 
     return crops
 
-
-class intencity_parameterss:
-    def __init__(self, clip_values=(-100, 400), hist_equalization=False):
-        self.clip_values = clip_values
-        self.hist_equalization = hist_equalization
-
-    def __str__(self):
-        return "I-" \
-               + (f"Clip-{self.clip_values}" if self.clip_values is not None else '') \
-               + (f"_HistEqual" if self.hist_equalization else '') \
-
-
-def manipulate_CT_intencities(ct_array, params):
-    if params.clip_values is not None:
-        ct_array = np.clip(ct_array, params.clip_values[0], params.clip_values[1])
-
-    if params.hist_equalization:
-        image_histogram, bins = np.histogram(ct_array.flatten(), bins=256, density=True)
-        cdf = image_histogram.cumsum()  # cumulative distribution function
-        cdf = 255 * cdf / cdf[-1]  # normalize
-
-        # use linear interpolation of cdf to find new pixel values
-        ct_array = np.interp(ct_array.flatten(), bins[:-1], cdf).reshape(ct_array.shape)
-        ct_array = ct_array.astype(np.int16)
-
-    return ct_array
-
 def get_LiTS2017_paths(data_root):
     ct_files = sorted(os.listdir(os.path.join(data_root, 'ct')))
     segmentation_files = sorted(os.listdir(os.path.join(data_root, 'seg')))
@@ -98,7 +71,7 @@ def get_KiTS2019_paths(data_root):
     ]
 
 
-def create_dataset(data_paths, min_sizes=(4, 10, 10), normalize_axial_mm=None, crop_params=None, intencity_params=None):
+def create_dataset(data_paths, min_sizes=(4, 10, 10), normalize_axial_mm=None, crop_params=None):
     """"
     Create a dataset of 3d crops of tumors with margins
     param: crop_params: optional parameters for cropped version of the data
@@ -110,7 +83,6 @@ def create_dataset(data_paths, min_sizes=(4, 10, 10), normalize_axial_mm=None, c
     processed_dir = f"{dataset_name}_(MS-{min_sizes}" \
                     + (f"_MM-{normalize_axial_mm}" if normalize_axial_mm is not None else '') \
                     + (f"_Crop-{crop_params}" if crop_params is not None else '') \
-                    + (f"_Intencity-{intencity_params}" if intencity_params is not None else '') \
                     + ")"
     new_ct_dir = os.path.join(processed_dir, 'ct')
     new_seg_dir = os.path.join(processed_dir, 'seg')
@@ -129,9 +101,6 @@ def create_dataset(data_paths, min_sizes=(4, 10, 10), normalize_axial_mm=None, c
         assert (seg_array.shape == ct_array.shape)
 
         spacings.append(ct.GetSpacing()[-1])
-
-        if intencity_params is not None:
-            ct_array = manipulate_CT_intencities(ct_array, intencity_params)
 
         # Crop blobs and save with the same
         if crop_params is not None:
@@ -174,10 +143,10 @@ def create_dataset(data_paths, min_sizes=(4, 10, 10), normalize_axial_mm=None, c
 
 if __name__ == '__main__':
     dataset_name = 'KiTS2019'
-    # dataset_name = 'Lits2017'
+    # dataset_name = 'LiTS2017'
     if dataset_name == 'KiTS2019':
         data_paths = get_KiTS2019_paths('/home/ariel/projects/MedicalImageSegmentation/data/KidneyTumorSegmentation2019/train')
-    elif dataset_name == 'Lits2017':
+    elif dataset_name == 'LiTS2017':
         data_paths = get_LiTS2017_paths('/home/ariel/projects/MedicalImageSegmentation/data/LiverTumorSegmentation/train')
     crop_params = cropping_parameterss(cropping_lable=1, slice_margins=(1, 1, 1), mask_dilation=11)
-    create_dataset(data_paths, min_sizes=(3, 15, 15), normalize_axial_mm=2, crop_params=crop_params, intencity_params=None)
+    create_dataset(data_paths, min_sizes=(3, 15, 15), normalize_axial_mm=2, crop_params=crop_params)

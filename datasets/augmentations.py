@@ -5,23 +5,6 @@ from scipy.ndimage import map_coordinates
 import torchvision.transforms.functional as F
 
 
-class RandomScale:
-    def __init__(self, p=0.5, scale_range=(128,256)):
-        self.p = p
-        self.scale_range = scale_range
-
-    def __call__(self, sample):
-        image, segmap = sample
-        if torch.rand(1) < self.p:
-            h, w = image.shape[-2:]
-            new_w = np.random.randint(*self.scale_range)
-            new_h = h * new_w // w
-
-            image = transforms.Resize((new_h, new_w))(torch.from_numpy(image).unsqueeze(0))[0].numpy()
-            segmap = transforms.Resize((new_h, new_w), interpolation=InterpolationMode.NEAREST)(torch.from_numpy(segmap).unsqueeze(0))[0].numpy()
-        return image, segmap
-
-
 class Resize:
     def __init__(self, rescale=128):
         self.rescale = rescale
@@ -36,6 +19,48 @@ class Resize:
 
         # image = transforms.Resize((self.rescale, self.rescale))(torch.from_numpy(image).unsqueeze(0))[0].numpy()
         # segmap = transforms.Resize((self.rescale, self.rescale), interpolation=InterpolationMode.NEAREST)(segmap[None, :])[0]
+        return image, segmap
+
+
+class HistogramEqualization:
+    def __init__(self, nbins):
+        self.nbins = nbins
+
+    def __call__(self, sample):
+        image, segmap = sample
+        image_histogram, bins = np.histogram(image.flatten(), bins=256, density=True)
+        cdf = image_histogram.cumsum()  # cumulative distribution function
+        cdf = cdf / cdf[-1]  # normalize to [0,255]
+
+        # use linear interpolation of cdf to find new pixel values
+        image = np.interp(image.flatten(), bins[:-1], cdf).reshape(image.shape)
+
+        return image, segmap
+
+
+class Znormalization:
+    def __call__(self, sample):
+        image, segmap = sample
+
+        image = (image - image.mean()) / image.std()
+
+        return image, segmap
+
+
+class RandomScale:
+    def __init__(self, p=0.5, scale_range=(128,256)):
+        self.p = p
+        self.scale_range = scale_range
+
+    def __call__(self, sample):
+        image, segmap = sample
+        if torch.rand(1) < self.p:
+            h, w = image.shape[-2:]
+            new_w = np.random.randint(*self.scale_range)
+            new_h = h * new_w // w
+
+            image = transforms.Resize((new_h, new_w))(torch.from_numpy(image).unsqueeze(0))[0].numpy()
+            segmap = transforms.Resize((new_h, new_w), interpolation=InterpolationMode.NEAREST)(torch.from_numpy(segmap).unsqueeze(0))[0].numpy()
         return image, segmap
 
 
@@ -65,18 +90,18 @@ class RandomCrop:
         return image, segmap
 
 
-class ElasticDeformation3D_package:
-    def __init__(self, sigma=25, n_points=3, p=0.5):
-        self.sigma = sigma
-        self.n_points = n_points
-        self.p = p
-
-    def __call__(self, sample):
-        if torch.rand(1) < self.p:
-            import elasticdeform
-            # return elasticdeform.deform_random_grid([X, Y], sigma=self.sigma, order=[1, 0], mode='nearest', axis=(1, 2)) # only spatialy (same for all slices)
-            sample = elasticdeform.deform_random_grid(list(sample), sigma=self.sigma, order=[1, 0], mode='nearest')
-        return sample
+# class ElasticDeformation3D_package:
+#     def __init__(self, sigma=25, n_points=3, p=0.5):
+#         self.sigma = sigma
+#         self.n_points = n_points
+#         self.p = p
+#
+#     def __call__(self, sample):
+#         if torch.rand(1) < self.p:
+#             import elasticdeform
+#             # return elasticdeform.deform_random_grid([X, Y], sigma=self.sigma, order=[1, 0], mode='nearest', axis=(1, 2)) # only spatialy (same for all slices)
+#             sample = elasticdeform.deform_random_grid(list(sample), sigma=self.sigma, order=[1, 0], mode='nearest')
+#         return sample
 
 
 class ElasticDeformation3D:
@@ -133,6 +158,23 @@ class ElasticDeformation3D:
         return sample
 
 
+class RandomAffine:
+    def __init__(self, p=0.5, degrees=(30, 70), translate=(0.1, 0.3), scale=(0.5, 0.75)):
+        self.p = p
+        self.degrees = list(degrees if degrees is not None else [0,0])
+        self.translate = list(translate if translate is not None else [0,0])
+        self.scale = list(scale if scale is not None else [1,1])
+
+    def __call__(self, sample):
+        image, segmap = sample
+        if torch.rand(1) < self.p:
+            image_size = F._get_image_size(image)
+            ret = transforms.RandomAffine.get_params(self.degrees, self.translate, self.scale, None, img_size=image_size)
+            image = F.affine(image, *ret, interpolation=InterpolationMode.BILINEAR)
+            segmap = F.affine(segmap, *ret, interpolation=InterpolationMode.NEAREST)
+        return image, segmap
+
+
 class random_flips:
     def __init__(self, p=0.5):
         self.p = p
@@ -148,16 +190,16 @@ class random_flips:
 
 
 class random_noise:
-    def __init__(self, p=0.5, std=0.25):
+    def __init__(self, p=0.5, std_factor=0.5):
         self.p = p
-        self.std = std
+        self.std_factor = std_factor
 
     def __call__(self, sample):
         image, segmap = sample
         if torch.rand(1) < self.p:
             dtype = image.dtype
             image = image.float()
-            image += torch.randn(image.shape) * self.std * image.std()
+            image += torch.randn(image.shape) * self.std_factor * image.std()
             image = image.to(dtype=dtype)
         return image, segmap
 
@@ -174,18 +216,3 @@ class random_clip:
         image = image.clip(min_v, max_v)
         return image, segmap
 
-class histogram_equalization:
-    def __init__(self, nbins):
-        self.nbins = nbins
-
-    def __call__(self, sample):
-        image, segmap = sample
-        image_histogram, bins = np.histogram(image.flatten(), bins=256, density=True)
-        cdf = image_histogram.cumsum()  # cumulative distribution function
-        cdf = 255 * cdf / cdf[-1]  # normalize
-
-        # use linear interpolation of cdf to find new pixel values
-        image = np.interp(image.flatten(), bins[:-1], cdf).reshape(image.shape)
-        image = image.astype(np.int16)
-
-        return image, segmap

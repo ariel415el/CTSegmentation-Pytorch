@@ -34,7 +34,7 @@ def evaluate(model, dataloader, outputs_dir=None):
         total_iou += iou_score
 
         # plot volume
-        if outputs_dir:
+        if outputs_dir is not None:
             dir_path = os.path.join(outputs_dir, f"Case-{case_name}_Dice-{[f'{x:.3f}' for x in dice_per_class]}")
             write_volume_slices(ct_volume[0], [pred_volume.argmax(dim=1)[0], gt_volume[0]], dir_path)
 

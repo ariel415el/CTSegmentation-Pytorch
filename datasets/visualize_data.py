@@ -5,7 +5,6 @@ from torch.utils.data import DataLoader
 from datasets.augmentations import *
 from datasets.ct_dataset import CTDataset, get_data_pathes
 from datasets.ct_dataset import ToTensor
-from datasets.preprocess_data import manipulate_CT_intencities, intencity_parameterss
 from torchvision.utils import save_image
 from torchvision import transforms as tv_transforms
 
@@ -70,40 +69,26 @@ def write_volume_slices(ct_volume, additional_volumes, dir_path):
         save_image(img_volume[s], f"{dir_path}/slice-{s}.png", normalize=True)
 
 
-def visualize_preprocessing_affects(dataloader, output_dir):
-    param_sets = [
-        intencity_parameterss(clip_values=None),
-        intencity_parameterss(clip_values=(-100, 400)),
-        intencity_parameterss(clip_values=(-512, 512)),
-        intencity_parameterss(clip_values=None, hist_equalization=True),
-        intencity_parameterss(clip_values=(-100, 400), hist_equalization=True),
-        intencity_parameterss(clip_values=(-512, 512), hist_equalization=True),
-    ]
-    for sample in dataloader:
-        for i, params in enumerate(param_sets):
-            ct_volume = sample['ct']
-            gt_volume = sample['gt']
-            ct_volume = torch.from_numpy(manipulate_CT_intencities(ct_volume.numpy(), params))
-
-            volume_dir = f"{output_dir}/{sample['case_name'][0]}/{str(params)}"
-            write_volume_slices(ct_volume[0], [gt_volume[0]], volume_dir)
-
-
 def visualize_augmentations(data_paths, outputs_dir):
     """
     Visualize the isolated effect of each image augmentation
     """
 
     transforms = [
-        (tv_transforms.Compose([ToTensor()]), 1, 'raw'),
+        # (tv_transforms.Compose([ToTensor()]), 1, 'raw'),
         (tv_transforms.Compose([random_clip(-100, 400), ToTensor()]), 1, 'original-clipped'),
-        (tv_transforms.Compose([histogram_equalization(nbins=256), ToTensor()]), 1, 'HistEqual'),
-        (tv_transforms.Compose([random_clip((-200, -50), (256, 1024)), ToTensor()]), 3, 'Rclip'),
-        (tv_transforms.Compose([random_clip(-100, 400), ElasticDeformation3D(sigma=5, p=1), ToTensor()]), 3, 'elastic'),
-        (tv_transforms.Compose([random_clip(-100, 400), RandomCrop(p=1), ToTensor()]), 3, 'Rcrop'),
-        (tv_transforms.Compose([random_clip(-100, 400), ToTensor(), Resize(256)]), 1, 'Resize'),
-        (tv_transforms.Compose([random_clip(-100, 400), ToTensor(), random_flips(p=1)]), 3, 'flip'),
-        (tv_transforms.Compose([random_clip(-100, 400), ToTensor(), random_noise(p=1, std=0.25)]), 1, 'noise'),
+        (tv_transforms.Compose([random_clip(-100, 400), ToTensor(), RandomAffine(p=1, degrees=None, translate=None, scale=(0.5, 0.75))]), 1, 'scale'),
+        (tv_transforms.Compose([random_clip(-100, 400), ToTensor(), RandomAffine(p=1, degrees=None, translate=(0.1, 0.3), scale=None)]), 1, 'translate'),
+        (tv_transforms.Compose([random_clip(-100, 400), ToTensor(), RandomAffine(p=1, degrees=(30, 70), translate=None, scale=None)]), 1, 'rotate'),
+        # (tv_transforms.Compose([random_clip(-100, 400), HistogramEqualization(256), ToTensor()]), 1, 'Clip+Hist'),
+        # (tv_transforms.Compose([random_clip(-100, 400), HistogramEqualization(256), Znormalization(), ToTensor()]), 1, 'Clip+Hist+Znorm'),
+        # (tv_transforms.Compose([histogram_equalization(nbins=256), ToTensor()]), 1, 'HistEqual'),
+        # (tv_transforms.Compose([random_clip((-200, -50), (256, 1024)), ToTensor()]), 3, 'Rclip'),
+        # (tv_transforms.Compose([random_clip(-100, 400), ElasticDeformation3D(sigma=5, p=1), ToTensor()]), 3, 'elastic'),
+        # (tv_transforms.Compose([random_clip(-100, 400), RandomCrop(p=1), ToTensor()]), 3, 'Rcrop'),
+        # (tv_transforms.Compose([random_clip(-100, 400), ToTensor(), Resize(256)]), 1, 'Resize'),
+        # (tv_transforms.Compose([random_clip(-100, 400), ToTensor(), random_flips(p=1)]), 3, 'flip'),
+        # (tv_transforms.Compose([random_clip(-100, 400), ToTensor(), random_noise(p=1, std=0.25)]), 1, 'noise'),
     ]
 
     for (t, n_repeats, t_name) in transforms:
@@ -148,20 +133,20 @@ def visualize_dataset(dataloader, output_dir):
 
 if __name__ == '__main__':
     # visualize original data and its preprocessing
-    original_data_path = '/home/ariel/projects/MedicalImageSegmentation/data/LiverTumorSegmentation/train'
-    data_paths = get_data_pathes(original_data_path)
-    sorted(data_paths)
-    data_paths = data_paths[12:13]
+    # original_data_path = '/home/ariel/projects/MedicalImageSegmentation/data/LiverTumorSegmentation/train'
+    # data_paths = get_data_pathes(original_data_path)
+    # sorted(data_paths)
+    # data_paths = data_paths[12:13]
 
-    dataloader = DataLoader(CTDataset(data_paths, transforms=ToTensor()))
-    visualize_dataset(dataloader, os.path.join(original_data_path, "visualize_data"))
+    # dataloader = DataLoader(CTDataset(data_paths, transforms=ToTensor()))
+    # visualize_dataset(dataloader, os.path.join(original_data_path, "visualize_data"))
 
     # visualize_preprocessing_affects(dataloader, os.path.join(original_data_path, "visualize_preprocessing"))
 
     # # Viuslize dataset
-    # data_path = 'datasets/LiverData_(S-1_MS-(3, 10, 10)_Crop-CL-1_margins-(1, 1, 1)_OB-0.5_MD-11)'
-    # data_paths = get_data_pathes(data_path)
-    # sorted(data_paths)
-    # data_paths = data_paths[32:33]
+    data_path = 'datasets/LiTS2017_(MS-(3, 15, 15)_MM-2_Crop-CL-1_margins-(1, 1, 1)_OB-0.5_MD-11)'
+    data_paths = get_data_pathes(data_path)
+    sorted(data_paths)
+    data_paths = data_paths[32:33]
     #
-    # visualize_augmentations(data_paths, os.path.join(data_path, "visualize_augmentations"))
+    visualize_augmentations(data_paths, os.path.join(data_path, "visualize_augmentations"))

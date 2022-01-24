@@ -38,30 +38,32 @@ class SliceVolume(object):
 
 
 def get_transforms(slice_size, resize, augment_data):
+    val_transforms = [
+        augmentations.random_clip(-100, 400),
+        augmentations.HistogramEqualization(256),
+        augmentations.Znormalization(),
+        ToTensor(),
+        augmentations.Resize(resize)
+    ]
+
+    train_transforms = [SliceVolume(slice_size=slice_size)]
     if augment_data:
-        train_transforms = [
-            SliceVolume(slice_size=slice_size),
+        train_transforms += [
             augmentations.ElasticDeformation3D(sigma=7, p=0.1),
             augmentations.RandomCrop(p=1),
             augmentations.random_clip((-200, -50), (256, 1024)),
+            augmentations.HistogramEqualization(256),
+            augmentations.Znormalization(),
             ToTensor(),
-            augmentations.Resize(resize),
             augmentations.random_flips(p=1),
-            augmentations.random_noise(p=0.5, std=0.25),
+            augmentations.RandomAffine(p=0.3, degrees=(-45, 45), translate=(0,15), scale=(0.75, 1)),
+            augmentations.Resize(resize),
+            augmentations.random_noise(p=0.5, std_factor=0.25),
         ]
     else:
-        train_transforms = [
-            SliceVolume(slice_size=slice_size),
-            ToTensor(),
-            augmentations.random_clip(-100, 400),
-            augmentations.Resize(resize)
-        ]
+        train_transforms += val_transforms
 
-    val_transforms = [
-        ToTensor(),
-        augmentations.random_clip(-100, 400),
-        augmentations.Resize(resize)
-    ]
+
     return transforms.Compose(train_transforms), transforms.Compose(val_transforms)
 
 
@@ -147,7 +149,9 @@ class CTDataset(Dataset):
         if self.transforms:
             sample = self.transforms(sample)
 
+        # TODO: Note that this is only for 2 classes
         gt = (sample[1] == 2).long()
         mask = (sample[1] != 0)
+        sample[0][~mask] = 0
 
         return {'ct':  sample[0], "gt":  gt, 'mask': mask, 'case_name': self.case_names[i]}
