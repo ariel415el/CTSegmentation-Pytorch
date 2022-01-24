@@ -28,12 +28,12 @@ class DoubleConv(nn.Module):
 class Down(nn.Module):
     """Downscaling with maxpool then double conv"""
 
-    def __init__(self, in_channels, out_channels, trilinear=False, bias=False):
+    def __init__(self, in_channels, out_channels, trilinear=True, bias=False):
         super().__init__()
         if trilinear:
             self.layers = [nn.MaxPool3d(kernel_size=2, stride=2, padding=0)]
         else:
-            self.layers = [nn.Conv3d(in_channels, in_channels, kernel_size=2, padding=1, bias=bias, stride=2)]
+            self.layers = [nn.Conv3d(in_channels, in_channels, kernel_size=3, padding=1, bias=bias, stride=2)]
         self.layers.append(DoubleConv(in_channels, out_channels, bias))
 
         self.layers = nn.Sequential(*self.layers)
@@ -71,9 +71,56 @@ class Up(nn.Module):
         return self.conv(x)
 
 
-class UNet3D(nn.Module):
+class SemRef(nn.Module):
+    """Downscaling with maxpool then double conv"""
+    def __init__(self, low_in_channels, high_in_channels, bias=False):
+        super().__init__()
+        self.conv_IN_LR = nn.Sequential(
+            nn.Conv3d(low_in_channels, low_in_channels, kernel_size=3, padding=1, bias=bias),
+            nn.InstanceNorm3d(low_in_channels),
+            nn.LeakyReLU(inplace=True),
+        )
+        self.conv_1x1 = nn.Sequential(
+            nn.Conv3d(low_in_channels, nn.Conv3d(low_in_channels + high_in_channels, low_in_channels, kernel_size=1, padding=0, bias=bias)),
+            nn.Softmax()
+        )
+
+    def forward(self, lower_level_map, higher_level_map):
+        all_maps = torch.cat([lower_level_map, higher_level_map], dim=1)
+        attention_weights = torch.mean(all_maps, dim=[-2, -1]) # global_average_pooling
+        attention_weights = self.conv_1x1(attention_weights)
+        new_maps = lower_level_map + self.conv_IN_LR(lower_level_map) * attention_weights
+        return new_maps
+
+class SpaRef(nn.Module):
+    """Downscaling with maxpool then double conv"""
+    def __init__(self, low_in_channels, high_in_channels, bias=False):
+        super().__init__()
+        self.conv_1 = nn.Sequential(
+            nn.Conv3d(low_in_channels + high_in_channels, high_in_channels, kernel_size=3, padding=1, bias=bias),
+            nn.InstanceNorm3d(low_in_channels),
+            nn.LeakyReLU(inplace=True),
+        )
+        self.conv_2 = nn.Sequential(
+            nn.Conv3d(low_in_channels, nn.Conv3d(high_in_channels, 1, kernel_size=3, padding=1, bias=bias)),
+            nn.Softmax()
+        )
+        self.conv_3 = nn.Sequential(
+            nn.Conv3d(high_in_channels, high_in_channels, kernel_size=3, padding=1, bias=bias),
+            nn.InstanceNorm3d(high_in_channels),
+            nn.LeakyReLU(inplace=True),
+        )
+
+    def forward(self, lower_level_map, higher_level_map):
+        all_maps = torch.cat([lower_level_map, higher_level_map], dim=1)
+        attention_map = self.conv_2(self.conv_1(all_maps))
+        weighted_higer_map = higher_level_map + attention_map * higher_level_map
+        new_maps = self.conv_3(weighted_higer_map)
+        return new_maps
+
+class DARN(nn.Module):
     def __init__(self, n_channels, n_classes, trilinear=True, bias=False):
-        super(UNet3D, self).__init__()
+        super(DARN, self).__init__()
         self.n_channels = n_channels
         self.n_classes = n_classes
         self.trilinear = trilinear
@@ -89,51 +136,58 @@ class UNet3D(nn.Module):
         self.up3 = Up(256, 128 // factor, trilinear)
         self.up4 = Up(128, 64, trilinear)
 
+        self.upscale_2 = nn.Upsample(scale_factor=2, mode='trilinear', align_corners=True)
+        self.upscale_4 = nn.Upsample(scale_factor=4, mode='trilinear', align_corners=True)
+        self.upscale_8 = nn.Upsample(scale_factor=8, mode='trilinear', align_corners=True)
+        self.upscale_16 = nn.Upsample(scale_factor=8, mode='trilinear', align_corners=True)
+
+        # self.sem_ref0 = SemRef(64, 128)
+        # self.sem_ref1 = SemRef(128, 256)
+        # self.sem_ref2 = SemRef(256, 512)
+        #
+        # self.spa_ref1 = SpaRef(64, 128)
+        # self.spa_ref2 = SpaRef(128, 256)
+        # self.spa_ref3 = SpaRef(256, 512)
+
+        self.out_conv = nn.Conv3d(64 + 64 + 128 + 256, n_classes, kernel_size=1, padding=0, bias=bias, stride=1)
+
     def forward(self, x):
-        x1 = self.inc(x.unsqueeze(1))
-        x2 = self.down1(x1)
-        x3 = self.down2(x2)
-        x4 = self.down3(x3)
-        x5 = self.down4(x4)
-        x = self.up1(x5, x4)
-        x = self.up2(x, x3)
-        x = self.up3(x, x2)
-        x = self.up4(x, x1)
-        logits = self.outc(x)
-        return logits
+        # encoder
+        x_l0 = self.inc(x.unsqueeze(1))
+        x_l1 = self.down1(x_l0)
+        x_l2 = self.down2(x_l1)
+        x_l3 = self.down3(x_l2)
+        y_l4 = self.down4(x_l3)
+
+        # decoder
+        y_l3 = self.up1(y_l4, x_l3)
+        y_l2 = self.up2(y_l3, x_l2)
+        y_l1 = self.up3(y_l2, x_l1)
+        y_l0 = self.up4(y_l1, x_l0)
+
+        maps1_l3 = self.upscale_8(y_l3)
+        maps1_l2 = self.upscale_4(y_l2)
+        maps1_l1 = self.upscale_2(y_l1)
+        maps1_l0 = y_l0
+        #
+        # maps2_l3 = maps1_l3
+        # maps2_l2 = self.sem_ref2(maps1_l2, maps1_l3)
+        # maps2_l1 = self.sem_ref1(maps1_l1, maps1_l2)
+        # maps2_l0 = self.sem_ref0(maps1_l0, maps1_l1)
+        #
+        # maps3_l3 = self.spa_ref3(maps2_l2, maps2_l3)
+        # maps3_l2 = self.spa_ref3(maps2_l2, maps2_l1)
+        # maps3_l1 = self.spa_ref3(maps2_l0, maps2_l1)
+        # maps3_l0 = maps2_l0
+
+        all_maps = torch.cat([maps1_l3, maps1_l2, maps1_l1, maps1_l0], dim=1)
+        final_pred = self.out_conv(all_maps)
+
+        return final_pred, [maps1_l3, maps1_l2, maps1_l1, maps1_l0]
 
 
 if __name__ == '__main__':
-    net = UNet(1,2)
+    net = UNet3D(1,2)
     net.eval()
-    x1 = torch.zeros((2,1,16,32,32))
-    x2 = torch.zeros((2,1,16,32,32))
-
-    input_batch = torch.cat([x1,x2], dim=0)
-    input_tile_hor = torch.cat([x1,x2], dim=-1)
-    input_tile_ver = torch.cat([x1,x2], dim=-2)
-    print(input_batch.shape, input_tile_hor.shape, input_tile_ver.shape)
-
-    output_batch = net(input_batch)
-    output_tile_hor = net(input_tile_hor)
-    output_tile_ver = net(input_tile_ver)
-    print(output_batch.shape, output_tile_hor.shape, output_tile_ver.shape)
-
-    x1_batch = output_batch[0].unsqueeze(0)
-    x2_batch = output_batch[1].unsqueeze(0)
-
-    x1_tile_hor = output_tile_hor[:, :, :, :16]
-    x2_tile_hor = output_tile_hor[:, :, :, 16:]
-
-    x1_tile_ver = output_tile_ver[:, :, :16]
-    x2_tile_ver = output_tile_ver[:, :, 16:]
-
-    # x1_1 = torch.cat([output_1[0].unsqueeze(0), output_1[1].unsqueeze(0)], dim=-1)
-
-    print(x1_batch.shape, x2_batch.shape, x1_tile_hor.shape, x2_tile_hor.shape, x1_tile_ver.shape, x2_tile_ver.shape)
-
-    diff1 = torch.abs(x1_batch - x1_tile_hor)
-    diff2 = torch.abs(x1_batch - x1_tile_ver)
-    diff3 = torch.abs(x1_tile_hor - x1_tile_ver)
-
-    print(diff1.sum(), diff2.sum(), diff3.sum())
+    x1 = torch.zeros((2,16,32,32))
+    print(net(x1).shape)

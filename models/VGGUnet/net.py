@@ -9,7 +9,7 @@ from models.Unet.net import UNet
 class VGGUNet(UNet):
     def __init__(self, n_classes):
         super(VGGUNet, self).__init__(3, n_classes, bilinear=True, bias=True)
-        # self.load_weigts()
+        self.load_weigts()
 
     def load_weigts(self):
         assert self.bilinear

@@ -12,7 +12,9 @@ def SliceLoss(preds, gts, mask):
     :param mask: bool array of shape (b, 1, H, W) containing segmentation labels
     """
     dice_loss = compute_segmentation_loss(TverskyScore(0.5, 0.5), preds.unsqueeze(2), gts.unsqueeze(2), mask.unsqueeze(2))
-    ce_loss = nn.CrossEntropyLoss()(preds, gts[:, 0])
+    # ce_loss = nn.CrossEntropyLoss()(preds, gts[:, 0])
+    class_weights = torch.tensor([1,(gts == 0).sum() / (gts == 1).sum()]).to(preds.device)
+    ce_loss = nn.CrossEntropyLoss(weight=class_weights)(preds, gts[:, 0])
     # return dice_loss
     return ce_loss + dice_loss
 
@@ -22,6 +24,7 @@ class UnetModel(SegmentationModel):
         super(UnetModel, self).__init__(n_channels, n_classes, device)
         self.net = UNet(n_channels, n_classes, bilinear=bilinear).to(device)
         self.optimizer = optim.RMSprop(self.net.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
+        # self.optimizer = optim.RMSprop(self.net.parameters(), lr=lr, weight_decay=0.0005, momentum=0.8)
         self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'max', patience=2)  # goal: maximize val Dice score
         self.eval_batchsize = eval_batchsize
 
