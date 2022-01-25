@@ -20,10 +20,10 @@ def SliceLoss(preds, gts, mask):
 
 
 class VGGUnetModel(SegmentationModel):
-    def __init__(self, n_channels, n_classes, lr, device=torch.device('cpu'), eval_batchsize=1):
+    def __init__(self, n_channels, n_classes, lr, bilinear, eval_batchsize=1):
         assert n_channels == 1
-        super(VGGUnetModel, self).__init__(n_channels, n_classes, device)
-        self.net = VGGUNet(n_classes, bilinear=True).to(device)
+        super(VGGUnetModel, self).__init__(n_channels, n_classes)
+        self.net = VGGUNet(n_classes, bilinear=bilinear)
         self.optimizer = optim.RMSprop(self.net.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
         self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'max', patience=2)  # goal: maximize val Dice score
         self.eval_batchsize = eval_batchsize
@@ -76,3 +76,6 @@ class VGGUnetModel(SegmentationModel):
 
     def eval(self):
         self.net.eval()
+
+    def to(self, device):
+        self.net.to(device=device)

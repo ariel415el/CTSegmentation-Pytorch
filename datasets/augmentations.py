@@ -19,6 +19,7 @@ class Resize:
 
         # image = transforms.Resize((self.rescale, self.rescale))(torch.from_numpy(image).unsqueeze(0))[0].numpy()
         # segmap = transforms.Resize((self.rescale, self.rescale), interpolation=InterpolationMode.NEAREST)(segmap[None, :])[0]
+
         return image, segmap
 
 
@@ -35,8 +36,9 @@ class HistogramEqualization:
         # use linear interpolation of cdf to find new pixel values
         image = np.interp(image.flatten(), bins[:-1], cdf).reshape(image.shape)
 
-        return image, segmap
+        
 
+        return image, segmap
 
 class Znormalization:
     def __call__(self, sample):
@@ -44,8 +46,9 @@ class Znormalization:
 
         image = (image - image.mean()) / image.std()
 
-        return image, segmap
+        
 
+        return image, segmap
 
 class RandomScale:
     def __init__(self, p=0.5, scale_range=(128,256)):
@@ -61,8 +64,10 @@ class RandomScale:
 
             image = transforms.Resize((new_h, new_w))(torch.from_numpy(image).unsqueeze(0))[0].numpy()
             segmap = transforms.Resize((new_h, new_w), interpolation=InterpolationMode.NEAREST)(torch.from_numpy(segmap).unsqueeze(0))[0].numpy()
-        return image, segmap
 
+            
+
+        return image, segmap
 
 class RandomCrop:
     """Crop randomly the image in a sample.
@@ -87,6 +92,8 @@ class RandomCrop:
             image = image[..., top: top + new_h, left: left + new_w]
             segmap = segmap[..., top: top + new_h, left: left + new_w]
 
+            
+
         return image, segmap
 
 
@@ -101,7 +108,7 @@ class RandomCrop:
 #             import elasticdeform
 #             # return elasticdeform.deform_random_grid([X, Y], sigma=self.sigma, order=[1, 0], mode='nearest', axis=(1, 2)) # only spatialy (same for all slices)
 #             sample = elasticdeform.deform_random_grid(list(sample), sigma=self.sigma, order=[1, 0], mode='nearest')
-#         return sample
+#         return image, segmap
 
 
 class ElasticDeformation3D:
@@ -129,34 +136,32 @@ class ElasticDeformation3D:
         self.p = p
 
     def __call__(self, sample):
+        image, segmap = sample
         if torch.rand(1) < self.p:
-            X, Y = sample
-            S, H, W = X.shape
+            S, H, W = image.shape
 
             # creates the grid of coordinates of the voxels of the image (an ndim array per dimension)
             voxel_coordinates = np.meshgrid(np.arange(S),
-                                      np.arange(H),
-                                      np.arange(W),
-                                      indexing='ij')
+                                            np.arange(H),
+                                            np.arange(W),
+                                            indexing='ij')
 
             # creates the grid of coordinates of the points of the image in the "deformation grid" frame of reference
             coordinate_grid_0_to_n_points = np.meshgrid(np.linspace(0, self.n_points - 1, S),
-                             np.linspace(0, self.n_points - 1, H),
-                             np.linspace(0, self.n_points - 1, W),
-                             indexing='ij')
+                                                        np.linspace(0, self.n_points - 1, H),
+                                                        np.linspace(0, self.n_points - 1, W),
+                                                        indexing='ij')
 
             # creates the deformation along each dimension and then add it to the coordinates
             for i in range(len(voxel_coordinates)):
                 rand_displacements = np.random.randn(self.n_points, self.n_points, self.n_points) * self.sigma  # creating the displacement at the control points
-                interp_displacements = map_coordinates(rand_displacements, coordinate_grid_0_to_n_points, order=self.order).reshape(X.shape)
+                interp_displacements = map_coordinates(rand_displacements, coordinate_grid_0_to_n_points, order=self.order).reshape(image.shape)
                 voxel_coordinates[i] = np.add(voxel_coordinates[i], interp_displacements)  # adding the displacement
 
-            X = map_coordinates(X, voxel_coordinates, order=self.order, mode='nearest').reshape(X.shape)
-            Y = map_coordinates(Y, voxel_coordinates, order=0, mode='nearest').reshape(X.shape)
-            sample = X,Y
+            image = map_coordinates(image, voxel_coordinates, order=self.order, mode='nearest').reshape(image.shape)
+            segmap = map_coordinates(segmap, voxel_coordinates, order=0, mode='nearest').reshape(segmap.shape)
 
-        return sample
-
+        return image, segmap
 
 class RandomAffine:
     def __init__(self, p=0.5, degrees=(30, 70), translate=(0.1, 0.3), scale=(0.5, 0.75)):
@@ -172,8 +177,10 @@ class RandomAffine:
             ret = transforms.RandomAffine.get_params(self.degrees, self.translate, self.scale, None, img_size=image_size)
             image = F.affine(image, *ret, interpolation=InterpolationMode.BILINEAR)
             segmap = F.affine(segmap, *ret, interpolation=InterpolationMode.NEAREST)
-        return image, segmap
 
+            
+
+        return image, segmap
 
 class random_flips:
     def __init__(self, p=0.5):
@@ -186,8 +193,10 @@ class random_flips:
                 image, segmap = F.hflip(image), F.hflip(segmap)
             if torch.rand(1) < 0.5:
                 image, segmap = F.vflip(image), F.vflip(segmap)
-        return image, segmap
 
+            
+
+        return image, segmap
 
 class random_noise:
     def __init__(self, p=0.5, std_factor=0.5):
@@ -201,8 +210,10 @@ class random_noise:
             image = image.float()
             image += torch.randn(image.shape) * self.std_factor * image.std()
             image = image.to(dtype=dtype)
-        return image, segmap
 
+            
+
+        return image, segmap
 
 class random_clip:
     def __init__(self, min_interval=(-512, -511), max_interval=(512,513)):
@@ -211,8 +222,10 @@ class random_clip:
 
     def __call__(self, sample):
         image, segmap = sample
+
         min_v = self.min_interval if type(self.min_interval) == int else np.random.randint(*self.min_interval)
         max_v = self.max_interval if type(self.max_interval) == int else np.random.randint(*self.max_interval)
         image = image.clip(min_v, max_v)
-        return image, segmap
 
+
+        return image, segmap

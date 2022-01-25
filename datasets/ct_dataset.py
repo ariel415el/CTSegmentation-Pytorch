@@ -11,19 +11,26 @@ from datasets import augmentations
 from datasets.data_utils import get_data_pathes, read_volume
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-import config
+
+LITS2017_VALSETS = {'A': [19, 76, 50, 92, 88, 122, 100, 71, 23, 28, 9, 119, 39],
+                    'B': [101, 100, 112, 106, 23, 34, 30, 119, 90, 97, 118, 93, 0],
+                    'C': [97, 5, 17, 41, 105, 57, 15, 110, 93, 106, 32, 124, 68]}
+
 
 class ToTensor(object):
     """Convert ndarrays in sample to Tensors."""
+
     def __call__(self, sample):
         image, segmap = sample
-        return torch.from_numpy(image), torch.from_numpy(segmap)
+        image, segmap = torch.from_numpy(image), torch.from_numpy(segmap)
+        return image, segmap
 
 
 class SliceVolume(object):
     """Slice a portion of fixed size from the volume
       return a slice of size "slice_size" in the -4 dimension of the sample.
     """
+
     def __init__(self, slice_size=48):
         self.slice_size = slice_size
 
@@ -40,81 +47,87 @@ class SliceVolume(object):
         return image, segmap
 
 
-def get_transforms(slice_size, resize, augment_data):
+def get_transforms(data_config):
     val_transforms = [
         augmentations.random_clip(-100, 400),
-        # augmentations.HistogramEqualization(256),
-        augmentations.Znormalization(),
-        ToTensor(),
-        augmentations.Resize(resize)
     ]
 
-    train_transforms = [SliceVolume(slice_size=slice_size)]
-    if augment_data:
+    if data_config.hist_equalization:
+        val_transforms += [augmentations.HistogramEqualization(256)]
+
+    if data_config.Z_normalization:
+        val_transforms += [augmentations.Znormalization()]
+
+    val_transforms += [
+        augmentations.Znormalization(),
+        ToTensor(),
+        augmentations.Resize(data_config.resize)
+    ]
+
+    train_transforms = [SliceVolume(slice_size=data_config.slice_size)]
+    if data_config.augment_data:
         train_transforms += [
             augmentations.ElasticDeformation3D(sigma=7, p=0.1),
             augmentations.RandomCrop(p=1),
-            augmentations.random_clip((-200, -50), (256, 1024)),
-            # augmentations.HistogramEqualization(256),
-            augmentations.Znormalization(),
+            augmentations.random_clip((-200, -50), (256, 1024))
+        ]
+
+        if data_config.hist_equalization:
+            train_transforms += [augmentations.HistogramEqualization(256)]
+
+        if data_config.Z_normalization:
+            train_transforms += [augmentations.Znormalization()]
+
+        train_transforms += [
             ToTensor(),
             augmentations.random_flips(p=1),
-            augmentations.RandomAffine(p=0.3, degrees=(-45, 45), translate=(0,0.15), scale=(0.75, 1)),
-            augmentations.Resize(resize),
+            augmentations.RandomAffine(p=0.3, degrees=(-45, 45), translate=(0, 0.15), scale=(0.75, 1)),
+            augmentations.Resize(data_config.resize),
             augmentations.random_noise(p=0.5, std_factor=0.25),
         ]
     else:
         train_transforms += val_transforms
 
-
     return transforms.Compose(train_transforms), transforms.Compose(val_transforms)
 
 
-def get_datasets(data_root, split_mode, slice_size, resize, augment_data):
+def get_datasets(data_config):
     """
     Gather and split data paths and create datasets with according transforms
     param: split_mode: float for random split by percentage if validation cases or list of case numbers for the validation set
     """
-    data_paths = get_data_pathes(data_root)
+    data_paths = get_data_pathes(data_config.data_path)
     random.shuffle(data_paths)
 
-    # Split to train val
-    if type(split_mode) == float:
-        n_val = int(len(data_paths) * split_mode)
-        print([os.path.basename(x[0]) for x in data_paths[:n_val]])
-        train_paths, val_paths = data_paths[n_val:], data_paths[n_val:]
-    else: # list of cases
-        train_paths = []
-        val_paths = []
-        for ct_path, gt_path in data_paths:
-            is_train=True
-            for case_num in split_mode:
-                if f"volume-{case_num}-" in ct_path:
-                    is_train = False
-                    break
-            if is_train:
-                train_paths.append((ct_path, gt_path))
-            else:
-                val_paths.append((ct_path, gt_path))
+    train_paths = []
+    val_paths = []
+    for ct_path, gt_path in data_paths:
+        is_train = True
+        for case_num in LITS2017_VALSETS[data_config.val_set]:
+            if f"volume-{case_num}-" in ct_path:
+                is_train = False
+                break
+        if is_train:
+            train_paths.append((ct_path, gt_path))
+        else:
+            val_paths.append((ct_path, gt_path))
 
-    train_transforms, val_transforms = get_transforms(slice_size, resize, augment_data)
-    tarin_set = CTDataset(train_paths, transforms=train_transforms)
-    val_set = CTDataset(val_paths, transforms=val_transforms)
+    train_transforms, val_transforms = get_transforms(data_config)
+    tarin_set = CTDataset(train_paths, transforms=train_transforms, delete_bakground=data_config.delete_background)
+    val_set = CTDataset(val_paths, transforms=val_transforms, delete_bakground=data_config.delete_background)
 
     return tarin_set, val_set
 
 
-def get_dataloaders(data_root, split_mode, params, slice_size, resize, augment_data):
+def get_dataloaders(data_config):
     """
     Get dataloaders for training and evaluation.
     train_by_volume: 3d/2d training returns full CT volumes (batch_size, slices, H, W) or (batch_size, H, W)
     """
-    train_set, val_set = get_datasets(data_root, split_mode, slice_size, resize, augment_data)
+    train_set, val_set = get_datasets(data_config)
 
-    train_loader = DataLoader(train_set, shuffle=True, **params)
-
-    params['batch_size'] = 1
-    val_loader = DataLoader(val_set, shuffle=True, **params)
+    train_loader = DataLoader(train_set, shuffle=True, batch_size=data_config.batch_size, num_workers=data_config.num_workers)
+    val_loader = DataLoader(val_set, shuffle=True, batch_size=1, num_workers=data_config.num_workers)
 
     return train_loader, val_loader
 
@@ -123,8 +136,10 @@ class CTDataset(Dataset):
     """
     Dataset of entire CT volumes.
     """
-    def __init__(self, data_paths, transforms=None, min_n_slices=None):
+
+    def __init__(self, data_paths, transforms=None, min_n_slices=None, delete_bakground=False):
         self.transforms = transforms
+        self.delete_bakground = delete_bakground
         self.cts = []
         self.segs = []
         self.case_names = []
@@ -155,6 +170,7 @@ class CTDataset(Dataset):
         # TODO: Note that this is only for 2 classes
         gt = (sample[1] == 2).long()
         mask = (sample[1] != 0)
-        # sample[0][~mask] = 0
+        if self.delete_bakground:
+            sample[0][~mask] = sample[0][~mask].mean()
 
         return {'ct':  sample[0], "gt":  gt, 'mask': mask, 'case_name': self.case_names[i]}

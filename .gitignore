@@ -4,6 +4,6 @@ datasets/LiTS2017*/
 datasets/KiTS2019*/
 visualize_augmentations
 .idea
-train_dir*/
+*train_dir*/
 test/
 PRETRAINED

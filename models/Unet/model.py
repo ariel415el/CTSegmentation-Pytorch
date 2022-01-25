@@ -20,13 +20,14 @@ def SliceLoss(preds, gts, mask):
 
 
 class UnetModel(SegmentationModel):
-    def __init__(self, n_channels, n_classes, lr, bilinear=True, device=torch.device('cpu'), eval_batchsize=1):
-        super(UnetModel, self).__init__(n_channels, n_classes, device)
-        self.net = UNet(n_channels, n_classes, bilinear=bilinear).to(device)
+    def __init__(self, n_channels, n_classes, lr, bilinear=True, eval_batchsize=1):
+        super(UnetModel, self).__init__(n_channels, n_classes)
+        self.net = UNet(n_channels, n_classes, bilinear=bilinear)
         self.optimizer = optim.RMSprop(self.net.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
         # self.optimizer = optim.RMSprop(self.net.parameters(), lr=lr, weight_decay=0.0005, momentum=0.8)
         self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'max', patience=2)  # goal: maximize val Dice score
         self.eval_batchsize = eval_batchsize
+
 
     def train_one_sample(self, ct_volume, gt_volume, mask_volume, global_step):
         self.net.train()
@@ -76,3 +77,6 @@ class UnetModel(SegmentationModel):
 
     def eval(self):
         self.net.eval()
+
+    def to(self, device):
+        self.net.to(device=device)

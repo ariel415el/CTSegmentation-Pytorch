@@ -5,10 +5,9 @@ import torch
 
 from datasets.visualize_data import write_volume_slices
 from metrics import compute_segmentation_score, TverskyScore, compute_IOU
-from config import device
 
 
-def evaluate(model, dataloader, outputs_dir=None):
+def evaluate(model, dataloader, device, outputs_dir=None):
     model.eval()
 
     total_dice = 0

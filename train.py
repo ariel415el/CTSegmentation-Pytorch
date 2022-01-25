@@ -36,7 +36,9 @@ class plotter:
             plt.clf()
 
 
-def train_model(model, dataloaders, train_dir):
+def train_model(model, dataloaders, train_dir, train_configs):
+    device = train_configs.device
+    model.to(device)
     loss_plotter = plotter(train_dir)
     train_loader, val_loader = dataloaders
 
@@ -44,22 +46,23 @@ def train_model(model, dataloaders, train_dir):
     pbar = tqdm(unit='Slices')
     step = 0
     model.train()
-    while step < train_steps:
+    while step < train_configs.train_steps:
         for sample in train_loader:
             ct_volume = sample['ct'].to(device=device, dtype=torch.float32)
             gt_volume = sample['gt'].to(device=device, dtype=torch.long)
-            mask_volume = (sample['mask'] if ignore_background else torch.ones_like(sample['mask'])).to(device=device)
+            mask_volume = torch.ones_like(sample['mask']).to(device=device)
+            # mask_volume = (sample['mask'] if ignore_background else torch.ones_like(sample['mask'])).to(device=device)
 
             losses = model.train_one_sample(ct_volume, gt_volume, mask_volume, step)
             loss_plotter.register_data(losses)
 
             slices = ct_volume.shape[0] * ct_volume.shape[-3]
             pbar.update(slices)
-            pbar.set_description(f"Train-step: {step}/{train_steps}, Losses: {','.join([f'{k}: {v:.3f}' for k, v in losses.items()])}, lr: {model.optimizer.param_groups[0]['lr']:.10f}")
+            pbar.set_description(f"Train-step: {step}/{train_configs.train_steps}, Losses: {','.join([f'{k}: {v:.3f}' for k, v in losses.items()])}, lr: {model.optimizer.param_groups[0]['lr']:.10f}")
 
             # Evaluation round
-            if step % eval_freq == 0:
-                evaluation_report = evaluate(model, val_loader, f"{train_dir}/eval-step-{step}")
+            if step % train_configs.eval_freq == 0:
+                evaluation_report = evaluate(model, val_loader, train_configs.device, f"{train_dir}/eval-step-{step}")
                 model.step_scheduler(evaluation_report['Dice-non-bg'])
                 evaluation_report.pop("Slice/sec")
                 loss_plotter.register_data(evaluation_report)

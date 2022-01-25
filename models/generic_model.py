@@ -1,9 +1,11 @@
+import torch.nn
+
 
 class SegmentationModel:
-    def __init__(self, n_channels, n_classes, device):
+    def __init__(self, n_channels, n_classes):
+        super(SegmentationModel, self).__init__()
         self.n_channels = n_channels
         self.n_classes = n_classes
-        self.device = device
 
     def train_one_sample(self, ct_volume, gt_volume, mask, global_step):
         """
@@ -34,4 +36,7 @@ class SegmentationModel:
         raise NotImplementedError()
 
     def eval(self):
+        raise NotImplementedError()
+
+    def to(self, device):
         raise NotImplementedError()
