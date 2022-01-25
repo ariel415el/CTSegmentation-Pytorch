@@ -49,6 +49,7 @@ def train(model_config, data_config, train_config):
 
 def test(model_config, data_config, train_config):
     model = get_model(model_config)
+    model.to(train_config.device)
     model_dir = config.compose_experiment_name(model_config, data_config, train_config)
 
     latest_ckpt = max(glob.glob(f'{model_dir}/*.pth'), key=os.path.getctime)
@@ -75,7 +76,7 @@ if __name__ == '__main__':
     train_config = config.TrainConfigs()
     for valset in ['A', 'B', "C"]:
         for data_config in [
-            # config.DataConfigs(val_set=valset),
+            config.DataConfigs(val_set=valset),
             config.DataConfigs(val_set=valset, augment_data=True),
             config.DataConfigs(val_set=valset, augment_data=True, learnable_upsamples=True),
             config.DataConfigs(val_set=valset, augment_data=True, delete_background=True),

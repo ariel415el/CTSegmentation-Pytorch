@@ -36,7 +36,7 @@ class DataConfigs:
         f"{'_HistEq' if self.hist_equalization else ''}" \
         f"{'_ZNorm' if self.Z_normalization else ''}" \
         f"{'_LUS' if self.learnable_upsamples else ''}" \
-        f"{self.val_set}" \
+        f"_V-{self.val_set}" \
         # f"{'_MaskBg' if self.ignore_background else ''}" \
 
 
@@ -44,8 +44,10 @@ class DataConfigs:
 class TrainConfigs:
     train_tag: str = ""
     device: torch.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-    train_steps: int = 3 * 200
-    eval_freq: int = 200
+    train_steps: int = 2 * 50
+    eval_freq: int = 50
+
+
 
 
 def compose_experiment_name(model_configs, data_configs, train_configs):

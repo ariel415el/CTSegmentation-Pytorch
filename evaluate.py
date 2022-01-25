@@ -42,7 +42,7 @@ def evaluate(model, dataloader, device, outputs_dir=None):
     total_dice /= len(dataloader)
     total_iou /= len(dataloader)
     results_report.update({"Slice/sec": total_slices_per_sec / len(dataloader)})
-    results_report[f"Dice-non-bg"] = total_dice[1:].mean()
+    # results_report[f"Dice-non-bg"] = total_dice[1:].mean()
     for i in range(1, len(total_dice)):
         results_report[f"Dice-class-{i}"] = total_dice[i].item()
         results_report[f"IOU-class-{i}"] = total_iou[i].item()

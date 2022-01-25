@@ -171,6 +171,6 @@ class CTDataset(Dataset):
         gt = (sample[1] == 2).long()
         mask = (sample[1] != 0)
         if self.delete_bakground:
-            sample[0][~mask] = sample[0][~mask].mean()
+            sample[0][~mask] = (sample[0][~mask]).float().mean().to(dtype=sample[0].dtype)
 
         return {'ct':  sample[0], "gt":  gt, 'mask': mask, 'case_name': self.case_names[i]}
