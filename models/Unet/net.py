@@ -50,7 +50,7 @@ class Up(nn.Module):
             self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
             self.conv = DoubleConv(in_channels, out_channels, in_channels // 2)
         else:
-            self.up = nn.ConvTranspose2d(in_channels, in_channels // 2, kernel_size=2, stride=2)
+            self.up = nn.ConvTranspose2d(in_channels // 2, in_channels // 2, kernel_size=2, stride=2)
             self.conv = DoubleConv(in_channels, out_channels)
 
     def forward(self, x1, x2):
@@ -88,13 +88,21 @@ class UNet(nn.Module):
         self.down1 = Down(64, 128, bias)
         self.down2 = Down(128, 256, bias)
         self.down3 = Down(256, 512, bias)
-        factor = 2 if bilinear else 1
-        self.down4 = Down(512, 1024 // factor, bias)
-        self.up1 = Up(1024, 512 // factor, bilinear)
-        self.up2 = Up(512, 256 // factor, bilinear)
-        self.up3 = Up(256, 128 // factor, bilinear)
+
+        self.down4 = Down(512, 512, bias)
+        self.up1 = Up(1024, 256, bilinear)
+        self.up2 = Up(512, 128, bilinear)
+        self.up3 = Up(256, 64, bilinear)
         self.up4 = Up(128, 64, bilinear)
         self.outc = OutConv(64, n_classes)
+
+        # factor = 2 if bilinear else 1
+        # self.down4 = Down(512, 1024 // factor, bias)
+        # self.up1 = Up(1024, 512 // factor, bilinear)
+        # self.up2 = Up(512, 256 // factor, bilinear)
+        # self.up3 = Up(256, 128 // factor, bilinear)
+        # self.up4 = Up(128, 64, bilinear)
+        # self.outc = OutConv(64, n_classes)
 
     def forward(self, x):
         x1 = self.inc(x)
@@ -111,9 +119,10 @@ class UNet(nn.Module):
 
 
 if __name__ == '__main__':
-    net = UNet(1,2)
+    net = UNet(1,2, bilinear=False)
     net.eval()
     x1 = torch.zeros((1,1,16,16))
+    print(net(x1).shape)
     x2 = torch.zeros((1,1,16,16))
 
     input_batch = torch.cat([x1,x2], dim=0)

@@ -18,7 +18,7 @@ def get_model(model_name, n_classes):
         slice_size = 1
     elif model_name == 'VGGUNet':
         batch_size = 32
-        lr = 0.00001
+        lr = 0.000001
         model = models.VGGUnetModel(n_channels=1, n_classes=n_classes, lr=lr, device=device, eval_batchsize=batch_size)
         slice_size = 1
     elif model_name == 'UNet3D':
@@ -64,18 +64,18 @@ if __name__ == '__main__':
                 f"{'_augment' if augment_data else ''}" \
                 f"{'_mask_bg' if ignore_background else ''}"
 
-    params = dict(batch_size=batch_size, num_workers=num_workers)  # dataset loaded into memory no need for workers
+    dataloading_params = dict(batch_size=batch_size, num_workers=num_workers)  # dataset loaded into memory no need for workers
     if mode == 'train':
-        dataloaders = get_dataloaders(data_path, split_mode=val_cases, params=params, slice_size=slice_size, resize=resize, augment_data=augment_data)
+        dataloaders = get_dataloaders(data_path, split_mode=val_cases, params=dataloading_params, slice_size=slice_size, resize=resize, augment_data=augment_data)
         train_model(model, dataloaders, model_dir)
 
     if mode == 'test':
         latest_ckpt = max(glob.glob(f'{model_dir}/*.pth'), key=os.path.getctime)
         model.load_state_dict(torch.load(latest_ckpt))
 
-        params['batch_size'] = 1
-        train_loader, test_loader = get_dataloaders(data_path, split_mode=val_cases, params=params, slice_size=slice_size, resize=resize)
-        train_loader.dataset.transforms = test_loader.dataset.transforms
+        dataloading_params['batch_size'] = 1
+        train_loader, test_loader = get_dataloaders(data_path, split_mode=val_cases, params=dataloading_params, slice_size=slice_size, resize=resize, augment_data=False)
+        train_loader.dataset.transforms = test_loader.dataset.transforms # avoid slicing and use full volumes
 
         f = open(os.path.join(model_dir, "test_report.txt"), 'w')
 

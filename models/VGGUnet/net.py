@@ -7,12 +7,11 @@ from models.Unet.net import UNet
 
 
 class VGGUNet(UNet):
-    def __init__(self, n_classes):
-        super(VGGUNet, self).__init__(3, n_classes, bilinear=True, bias=True)
+    def __init__(self, n_classes, bilinear=True):
+        super(VGGUNet, self).__init__(3, n_classes, bilinear=bilinear, bias=True)
         self.load_weigts()
 
     def load_weigts(self):
-        assert self.bilinear
         from torchvision.models import vgg13_bn
         vgg = vgg13_bn(pretrained=True)
         self.inc.double_conv.load_state_dict(vgg.features[:6].state_dict())

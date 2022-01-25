@@ -1,5 +1,6 @@
 import os
 import random
+import sys
 
 import numpy as np
 import torch
@@ -9,6 +10,8 @@ from torchvision import transforms
 from datasets import augmentations
 from datasets.data_utils import get_data_pathes, read_volume
 
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+import config
 
 class ToTensor(object):
     """Convert ndarrays in sample to Tensors."""
@@ -40,7 +43,7 @@ class SliceVolume(object):
 def get_transforms(slice_size, resize, augment_data):
     val_transforms = [
         augmentations.random_clip(-100, 400),
-        augmentations.HistogramEqualization(256),
+        # augmentations.HistogramEqualization(256),
         augmentations.Znormalization(),
         ToTensor(),
         augmentations.Resize(resize)
@@ -52,11 +55,11 @@ def get_transforms(slice_size, resize, augment_data):
             augmentations.ElasticDeformation3D(sigma=7, p=0.1),
             augmentations.RandomCrop(p=1),
             augmentations.random_clip((-200, -50), (256, 1024)),
-            augmentations.HistogramEqualization(256),
+            # augmentations.HistogramEqualization(256),
             augmentations.Znormalization(),
             ToTensor(),
             augmentations.random_flips(p=1),
-            augmentations.RandomAffine(p=0.3, degrees=(-45, 45), translate=(0,15), scale=(0.75, 1)),
+            augmentations.RandomAffine(p=0.3, degrees=(-45, 45), translate=(0,0.15), scale=(0.75, 1)),
             augmentations.Resize(resize),
             augmentations.random_noise(p=0.5, std_factor=0.25),
         ]
@@ -101,7 +104,7 @@ def get_datasets(data_root, split_mode, slice_size, resize, augment_data):
     return tarin_set, val_set
 
 
-def get_dataloaders(data_root, split_mode, params, slice_size=1, resize=128, augment_data=False):
+def get_dataloaders(data_root, split_mode, params, slice_size, resize, augment_data):
     """
     Get dataloaders for training and evaluation.
     train_by_volume: 3d/2d training returns full CT volumes (batch_size, slices, H, W) or (batch_size, H, W)
@@ -152,6 +155,6 @@ class CTDataset(Dataset):
         # TODO: Note that this is only for 2 classes
         gt = (sample[1] == 2).long()
         mask = (sample[1] != 0)
-        sample[0][~mask] = 0
+        # sample[0][~mask] = 0
 
         return {'ct':  sample[0], "gt":  gt, 'mask': mask, 'case_name': self.case_names[i]}

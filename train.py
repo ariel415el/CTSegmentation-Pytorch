@@ -26,11 +26,11 @@ class plotter:
 
     def plot(self):
         for k, v in self.data.items():
-            last_mean = np.mean(self.data[k] if len(self.data[k]) < 100 else self.data[k][-100:], label=k)
+            last_mean = np.mean(self.data[k] if len(self.data[k]) < 5 else self.data[k][-5:])
             self.data_means[k].append(last_mean)
             nvalues = len(self.data[k])
-            plt.plot(range(nvalues), self.data[k])
-            plt.plot(np.linspace(0, nvalues-1, len(self.data_means[k])), self.data_means[k], label="avg-last-100")
+            plt.plot(range(nvalues), self.data[k], label=k)
+            plt.plot(np.linspace(0, nvalues-1, len(self.data_means[k])), self.data_means[k], label="avg-last-5")
             plt.legend()
             plt.savefig(f'{self.plotting_dir}/{k}.png')
             plt.clf()
