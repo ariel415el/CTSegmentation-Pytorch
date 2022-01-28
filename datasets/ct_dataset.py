@@ -59,7 +59,6 @@ def get_transforms(data_config):
         val_transforms += [augmentations.Znormalization()]
 
     val_transforms += [
-        augmentations.Znormalization(),
         ToTensor(),
         augmentations.Resize(data_config.resize)
     ]
@@ -113,8 +112,8 @@ def get_datasets(data_config):
             val_paths.append((ct_path, gt_path))
 
     train_transforms, val_transforms = get_transforms(data_config)
-    tarin_set = CTDataset(train_paths, transforms=train_transforms, delete_bakground=data_config.delete_background)
-    val_set = CTDataset(val_paths, transforms=val_transforms, delete_bakground=data_config.delete_background)
+    tarin_set = CTDataset(train_paths, transforms=train_transforms, delete_bakground=data_config.delete_background, ignore_background=data_config.ignore_background)
+    val_set = CTDataset(val_paths, transforms=val_transforms, delete_bakground=data_config.delete_background, ignore_background=data_config.ignore_background)
 
     return tarin_set, val_set
 
@@ -137,9 +136,10 @@ class CTDataset(Dataset):
     Dataset of entire CT volumes.
     """
 
-    def __init__(self, data_paths, transforms=None, min_n_slices=None, delete_bakground=False):
+    def __init__(self, data_paths, transforms=None, min_n_slices=None, delete_bakground=False, ignore_background=False):
         self.transforms = transforms
         self.delete_bakground = delete_bakground
+        self.ignore_background = ignore_background
         self.cts = []
         self.segs = []
         self.case_names = []
@@ -172,5 +172,7 @@ class CTDataset(Dataset):
         mask = (sample[1] != 0)
         if self.delete_bakground:
             sample[0][~mask] = (sample[0][~mask]).float().mean().to(dtype=sample[0].dtype)
+        if not self.ignore_background:
+            mask = torch.ones_like(mask).bool()
 
         return {'ct':  sample[0], "gt":  gt, 'mask': mask, 'case_name': self.case_names[i]}

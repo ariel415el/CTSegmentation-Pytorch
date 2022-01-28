@@ -18,9 +18,9 @@ def VolumeLoss(preds, gts, mask):
 
 
 class UNet3DModel(SegmentationModel):
-    def __init__(self, n_channels, n_classes, slice_size=16, lr=0.0001, device=torch.device('cpu')):
-        super(UNet3DModel, self).__init__(n_channels, n_classes, device)
-        self.net = UNet3D(n_channels, n_classes).to(device)
+    def __init__(self, n_channels, n_classes, slice_size=16, lr=0.0001):
+        super(UNet3DModel, self).__init__(n_channels, n_classes)
+        self.net = UNet3D(n_channels, n_classes)
         self.slice_size = slice_size
         self.optimizer = optim.RMSprop(self.net.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
         self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'max', patience=2)  # goal: maximize val Dice score
@@ -79,3 +79,6 @@ class UNet3DModel(SegmentationModel):
 
     def eval(self):
         self.net.eval()
+
+    def to(self, device):
+        self.net.to(device=device)

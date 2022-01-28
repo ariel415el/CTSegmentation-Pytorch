@@ -10,39 +10,61 @@ from evaluate import evaluate
 from config import *
 
 
-class plotter:
-    def __init__(self, plotting_dir):
+class Plotter:
+    def __init__(self, plotting_dir, mean_size=10):
         os.makedirs(plotting_dir, exist_ok=True)
         self.plotting_dir = plotting_dir
         self.data = defaultdict(list)
         self.data_means = defaultdict(list)
         self.n = 0
+        self.mean_size = mean_size
+        self.dice_data = None
+        self.case_to_idx = None
 
-    def register_data(self, data):
+    def register_data(self, loss_dict):
         self.n += 1
-
-        for k, v in data.items():
+        for k, v in loss_dict.items():
             self.data[k].append(float(v))
+
+    # def register_evaluation_metrics(self, evaluation_report):
+    #     next_entry = np.stack([v for v in evaluation_report.values()], axis=0)[:, :, None]
+    #     if self.dice_data is None:
+    #         self.case_to_idx = {k: i for i,k in enumerate(evaluation_report)}
+    #         self.dice_data = next_entry
+    #     else:
+    #         self.dice_data = np.concatenate([self.dice_data, next_entry], axis=-1)
+
+    # def get_dice_per_case(self):
+    #     return self.dice_data[:, 1, -1].mean()
 
     def plot(self):
         for k, v in self.data.items():
-            last_mean = np.mean(self.data[k] if len(self.data[k]) < 5 else self.data[k][-5:])
-            self.data_means[k].append(last_mean)
             nvalues = len(self.data[k])
             plt.plot(range(nvalues), self.data[k], label=k)
-            plt.plot(np.linspace(0, nvalues-1, len(self.data_means[k])), self.data_means[k], label="avg-last-5")
+            last_mean = np.mean(self.data[k] if len(self.data[k]) < self.mean_size else self.data[k][-self.mean_size:])
+            self.data_means[k].append(last_mean)
+            plt.plot(np.linspace(0, nvalues-1, len(self.data_means[k])), self.data_means[k], label=f"avg-last-{self.mean_size}")
             plt.legend()
             plt.savefig(f'{self.plotting_dir}/{k}.png')
             plt.clf()
+        #
+        # class_idx = 1
+        # for case_num, idx in self.case_to_idx.items():
+        #     values = self.dice_data[idx, class_idx]
+        #     plt.plot(range(len(values)), values, label=case_num)
+
+        # plt.legend()
+        # plt.savefig(f'{self.plotting_dir}/Dice.png')
+        # plt.clf()
 
 
 def train_model(model, dataloaders, train_dir, train_configs):
     device = train_configs.device
     model.to(device)
-    loss_plotter = plotter(train_dir)
     train_loader, val_loader = dataloaders
 
     # Begin training
+    loss_plotter = Plotter(train_dir)
     pbar = tqdm(unit='Slices')
     step = 0
     model.train()
@@ -51,8 +73,7 @@ def train_model(model, dataloaders, train_dir, train_configs):
         for sample in train_loader:
             ct_volume = sample['ct'].to(device=device, dtype=torch.float32)
             gt_volume = sample['gt'].to(device=device, dtype=torch.long)
-            mask_volume = torch.ones_like(sample['mask']).to(device=device)
-            # mask_volume = (sample['mask'] if ignore_background else torch.ones_like(sample['mask'])).to(device=device)
+            mask_volume = sample['mask'].to(device=device, dtype=torch.bool)
 
             losses = model.train_one_sample(ct_volume, gt_volume, mask_volume, step)
             loss_plotter.register_data(losses)

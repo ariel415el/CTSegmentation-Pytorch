@@ -92,9 +92,9 @@ def create_dataset(data_paths, min_sizes=(4, 10, 10), normalize_axial_mm=None, c
 
     dropped_blobs = 0
     spacings = []
-    for ct_filename, gt_fname in tqdm(data_paths):
+    for ct_filepath, gt_fname in tqdm(data_paths):
         # Read data
-        ct = sitk.ReadImage(ct_filename, sitk.sitkInt16)
+        ct = sitk.ReadImage(ct_filepath, sitk.sitkInt16)
         ct_array = sitk.GetArrayFromImage(ct)
         seg = sitk.ReadImage(gt_fname, sitk.sitkInt8)
         seg_array = sitk.GetArrayFromImage(seg)
@@ -118,12 +118,12 @@ def create_dataset(data_paths, min_sizes=(4, 10, 10), normalize_axial_mm=None, c
 
             # drop small volumes
             if np.any(ct_array.shape < np.array(min_sizes)):
-                print(f"dropped_blob in case {ct_filename} with shape {ct_array.shape}")
+                print(f"dropped_blob in case {ct_filepath} with shape {ct_array.shape}")
                 dropped_blobs += 1
                 continue
 
             # Finally save data
-            fname = f"{os.path.splitext(ct_filename)[0]}"
+            fname = f"{os.path.basename(os.path.splitext(ct_filepath)[0])}"
 
             if location_string:
                 fname += f"-({location_string}).nii"
@@ -142,8 +142,8 @@ def create_dataset(data_paths, min_sizes=(4, 10, 10), normalize_axial_mm=None, c
 
 
 if __name__ == '__main__':
-    dataset_name = 'KiTS2019'
-    # dataset_name = 'LiTS2017'
+    # dataset_name = 'KiTS2019'
+    dataset_name = 'LiTS2017'
     if dataset_name == 'KiTS2019':
         data_paths = get_KiTS2019_paths('/home/ariel/projects/MedicalImageSegmentation/data/KidneyTumorSegmentation2019/train')
     elif dataset_name == 'LiTS2017':
