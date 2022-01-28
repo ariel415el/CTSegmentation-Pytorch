@@ -31,18 +31,27 @@ class SliceVolume(object):
       return a slice of size "slice_size" in the -4 dimension of the sample.
     """
 
-    def __init__(self, slice_size=48):
+    def __init__(self, slice_size=48, force_non_empty=False):
         self.slice_size = slice_size
+        self.force_non_empty = force_non_empty
 
     def __call__(self, sample):
         image, segmap = sample
 
         if image.shape[-3] > self.slice_size:
+            is_empty = np.all(segmap == 0)
             start_slice = np.random.randint(0, image.shape[-3] - self.slice_size)
             end_slice = start_slice + self.slice_size - 1
 
+            if self.force_non_empty and not is_empty:
+                # sample only non-empty slices
+                while np.all(segmap[..., start_slice:end_slice + 1, :, :] == 0):
+                    start_slice = np.random.randint(0, image.shape[-3] - self.slice_size)
+                    end_slice = start_slice + self.slice_size - 1
+
             image = image[..., start_slice:end_slice + 1, :, :]
             segmap = segmap[..., start_slice:end_slice + 1, :, :]
+
 
         return image, segmap
 
@@ -63,7 +72,7 @@ def get_transforms(data_config):
         augmentations.Resize(data_config.resize)
     ]
 
-    train_transforms = [SliceVolume(slice_size=data_config.slice_size)]
+    train_transforms = [SliceVolume(slice_size=data_config.slice_size, force_non_empty=data_config.force_non_empty)]
     if data_config.augment_data:
         train_transforms += [
             augmentations.ElasticDeformation3D(sigma=7, p=0.1),
@@ -170,6 +179,7 @@ class CTDataset(Dataset):
         # TODO: Note that this is only for 2 classes
         gt = (sample[1] == 2).long()
         mask = (sample[1] != 0)
+
         if self.delete_bakground:
             sample[0][~mask] = (sample[0][~mask]).float().mean().to(dtype=sample[0].dtype)
         if not self.ignore_background:

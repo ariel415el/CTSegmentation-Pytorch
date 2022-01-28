@@ -123,6 +123,31 @@ def compute_segmentation_score(score_func, pred_volume, segmentation_volume, mas
 #
 #     return intersection / union
 
+
+def SliceLoss(preds, gts, mask):
+    """
+    :param preds: float array of shape (b, n_class, H, W) contating class logits
+    :param gts: uint8 array of shape (b, 1, H, W) containing segmentation labels
+    :param mask: bool array of shape (b, 1, H, W) containing segmentation labels
+    """
+    dice_loss = compute_segmentation_loss(TverskyScore(0.5, 0.5), preds.unsqueeze(2), gts.unsqueeze(2), mask.unsqueeze(2))
+    class_weights = torch.tensor([1,(gts == 0).sum() / (gts == 1).sum()]).to(preds.device)
+    ce_loss = torch.nn.CrossEntropyLoss(weight=class_weights)(preds, gts[:, 0])
+    return ce_loss + dice_loss
+
+
+def VolumeLoss(preds, gts, mask):
+    """
+    :param preds: float array of shape (b, n_class, slices, H, W) contating class logits
+    :param gts: uint8 array of shape (b, slices, H, W) containing segmentation labels
+    :param mask: bool array of shape (b, slices, H, W) containing segmentation labels
+    """
+    dice_loss = compute_segmentation_loss(TverskyScore(0.5, 0.5), preds, gts.unsqueeze(1), mask.unsqueeze(1))
+    class_weights = torch.tensor([1,(gts == 0).sum() / (gts == 1).sum()]).to(preds.device)
+    ce_loss = torch.nn.CrossEntropyLoss(weight=class_weights)(preds, gts)
+    return dice_loss + ce_loss
+
+
 if __name__ == '__main__':
     import numpy as np
     from medpy.metric import dc

@@ -7,16 +7,6 @@ from torch import optim
 from models.generic_model import SegmentationModel
 
 
-def VolumeLoss(preds, gts, mask):
-    """
-    :param preds: float array of shape (b, n_class, slices, H, W) contating class logits
-    :param gts: uint8 array of shape (b, slices, H, W) containing segmentation labels
-    :param mask: bool array of shape (b, slices, H, W) containing segmentation labels
-    """
-    dice_loss = compute_segmentation_loss(TverskyScore(0.5, 0.5), preds, gts.unsqueeze(1), mask.unsqueeze(1))
-    return dice_loss
-
-
 class VnetModel(SegmentationModel):
     def __init__(self, n_channels, n_classes, slice_size=16, lr=0.0001, device=torch.device('cpu')):
         super(VnetModel, self).__init__(n_channels, n_classes, device)

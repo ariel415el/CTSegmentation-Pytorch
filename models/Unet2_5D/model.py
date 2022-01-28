@@ -1,25 +1,29 @@
 import torch
 from torch import nn, optim
+from metrics import compute_segmentation_loss, TverskyScore, SliceLoss
 from models.Unet.net import UNet
-from metrics import compute_segmentation_loss, TverskyScore
 from models.generic_model import SegmentationModel
 
 
-
-class UnetModel(SegmentationModel):
-    def __init__(self, n_channels, n_classes, lr, bilinear=True, bias=False, eval_batchsize=1):
-        super(UnetModel, self).__init__(n_channels, n_classes)
-        self.net = UNet(n_channels, n_classes, bilinear=bilinear, bias=bias)
+class Unet2_5DModel(SegmentationModel):
+    def __init__(self, slice_size, n_classes, lr, bilinear, bias=False, eval_batchsize=1):
+        super(Unet2_5DModel, self).__init__(slice_size, n_classes)
+        # assert slice_size % 2 == 1, "slice size  should be odd"
+        assert slice_size == 3, "Currently only slice size=3 is suppported "
+        self.net = UNet(slice_size, n_classes, bilinear=bilinear, bias=bias)
         self.optimizer = optim.RMSprop(self.net.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
-        # self.optimizer = optim.RMSprop(self.net.parameters(), lr=lr, weight_decay=0.0005, momentum=0.8)
         self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'max', patience=5)  # goal: maximize val Dice score
         self.eval_batchsize = eval_batchsize
 
     def train_one_sample(self, ct_volume, gt_volume, mask_volume, global_step):
-        self.net.train()
-        pred = self.net(ct_volume)
+        B, S, H, W = ct_volume.shape
+        m = 1
+        self.train()
+        middle_gt = gt_volume[:, m:m+1]
+        middle_mask = mask_volume[:, m:m+1]
+        middle_pred = self.net(ct_volume)
 
-        loss = SliceLoss(pred, gt_volume, mask_volume)
+        loss = SliceLoss(middle_pred, middle_gt, middle_mask)
 
         self.optimizer.zero_grad()
         loss.backward()
@@ -36,15 +40,16 @@ class UnetModel(SegmentationModel):
         returns prdiction of shape (1, n_classes, slices, H, W)
         """
         self.net.eval()
-        _, S, H, W = ct_volume.shape
+        B, S, H, W = ct_volume.shape
+        m=1
+        # padd
+        ct_volume = torch.cat([ct_volume[:, :m], ct_volume, ct_volume[:, -m:]], dim=1)
         pred_volumes = []
-        ct_volume = ct_volume.view(S, 1, H, W)
         with torch.no_grad():
-            i = 0
-            while i < S:
-                pred_volume = self.net(ct_volume[i: i + self.eval_batchsize])
+            for i in range(1,S+1):
+                ct_slice = ct_volume[:, i-m:i+m+1]
+                pred_volume = self.net(ct_slice)
                 pred_volumes.append(pred_volume)
-                i += self.eval_batchsize
 
         return torch.cat(pred_volumes).permute(1, 0, 2, 3).unsqueeze(0)
 
