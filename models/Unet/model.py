@@ -1,7 +1,7 @@
 import torch
 from torch import nn, optim
 from models.Unet.net import UNet
-from metrics import compute_segmentation_loss, TverskyScore
+from metrics import SliceLoss
 from models.generic_model import SegmentationModel
 
 

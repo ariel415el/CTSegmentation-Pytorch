@@ -1,3 +1,4 @@
+import logging
 import os
 import random
 import sys
@@ -12,8 +13,9 @@ from datasets.data_utils import get_data_pathes, read_volume
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+
 LITS2017_VALSETS = {'A': [19, 76, 50, 92, 88, 122, 100, 71, 23, 28, 9, 119, 39],
-                    'B': [101, 100, 112, 106, 23, 34, 30, 119, 90, 97, 118, 93, 0],
+                    'B': [101, 99, 112, 107, 24, 34, 30, 120, 90, 98, 118, 83, 0],
                     'C': [97, 5, 17, 41, 105, 57, 15, 110, 93, 106, 32, 124, 68]}
 
 
@@ -104,7 +106,7 @@ def get_datasets(data_config):
     Gather and split data paths and create datasets with according transforms
     param: split_mode: float for random split by percentage if validation cases or list of case numbers for the validation set
     """
-    data_paths = get_data_pathes(data_config.data_path)
+    data_paths = get_data_pathes(data_config.data_path)[:13]
     random.shuffle(data_paths)
 
     train_paths = []
@@ -154,7 +156,6 @@ class CTDataset(Dataset):
         self.case_names = []
         n_slices = []
         n_dropped_volumes = 0
-        print("Loading data into memory... ", end='')
         for ct_path, seg_path in data_paths:
             label_map = read_volume(seg_path)
             if min_n_slices is None or label_map.shape[0] >= min_n_slices:
@@ -165,8 +166,7 @@ class CTDataset(Dataset):
             else:
                 n_dropped_volumes += 1
         self.n_slices = np.sum(n_slices)
-        print(f"Done loading {self.n_slices} slices in {len(self.cts)} volumes, "
-              f"avg axial size volumes {np.mean(n_slices):.2f}, {n_dropped_volumes} volumes dropped")
+        logging.info(f"Dataset loaded: {self.n_slices} slices in {len(self.cts)} volumes")
 
     def __len__(self):
         return len(self.cts)

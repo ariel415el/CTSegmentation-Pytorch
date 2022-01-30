@@ -7,13 +7,12 @@ from torch import optim
 from models.generic_model import SegmentationModel
 
 class UNet3DModel(SegmentationModel):
-    def __init__(self, n_channels, n_classes, trilinear, slice_size=16, lr=0.0001):
-        super(UNet3DModel, self).__init__(n_channels, n_classes)
-        self.net = UNet3D(n_channels, n_classes, trilinear=trilinear)
-        # self.net = UNet3D_new()
+    def __init__(self, n_classes, trilinear, slice_size=16, lr=0.0001):
+        super(UNet3DModel, self).__init__(1, n_classes)
+        self.net = UNet3D(1, n_classes, trilinear=trilinear)
         self.slice_size = slice_size
-        # self.optimizer = optim.RMSprop(self.net.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
-        self.optimizer = optim.Adam(self.net.parameters(), lr=lr)
+        self.optimizer = optim.RMSprop(self.net.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
+        # self.optimizer = optim.Adam(self.net.parameters(), lr=lr)
         # self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'max', patience=10)  # goal: maximize val Dice score
 
     def train_one_sample(self, ct_volume, gt_volume, mask_volume, global_step):

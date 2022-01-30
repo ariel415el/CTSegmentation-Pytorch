@@ -78,13 +78,13 @@ def train_model(model, dataloaders, train_dir, train_configs):
             losses = model.train_one_sample(ct_volume, gt_volume, mask_volume, step)
             loss_plotter.register_data(losses)
 
-            slices = ct_volume.shape[0] * ct_volume.shape[-3]
-            pbar.update(slices)
+            pbar.update(train_configs.batch_size * train_configs.slice_size)
             pbar.set_description(f"Train-step: {step}/{train_configs.train_steps}, Losses: {','.join([f'{k}: {v:.3f}' for k, v in losses.items()])}, lr: {model.optimizer.param_groups[0]['lr']:.10f}")
 
             # Evaluation
             if step % train_configs.eval_freq == 0:
-                evaluation_report = evaluate(model, val_loader, train_configs.device, f"{train_dir}/eval-step-{step}")
+                debug_dir = "{train_dir}/eval-step-{step}" if train_configs.debug_images else None
+                evaluation_report = evaluate(model, val_loader, train_configs.device, outputs_dir=debug_dir)
                 score = evaluation_report['Dice-class-1']
                 model.step_scheduler(score)
                 evaluation_report.pop("Slice/sec")
@@ -94,7 +94,8 @@ def train_model(model, dataloaders, train_dir, train_configs):
 
                 ckpt = model.get_state_dict()
                 ckpt.update({'step': step, 'Dice-class-1': score})
-                torch.save(ckpt, f'{train_dir}/latest.pth')
+                # torch.save(ckpt, f'{train_dir}/latest.pth')
+                torch.save(ckpt, f'{train_dir}/step-{step}.pth')
                 if score > max_score:
                     max_score = score
                     torch.save(ckpt, f'{train_dir}/best.pth')

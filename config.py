@@ -30,6 +30,7 @@ class ExperimentConfigs:
     device: torch.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     train_steps: int = 50 * 500
     eval_freq: int = 500
+    debug_images = False
 
     def __str__(self):
         return f"{self.model_name}_R-{self.resize}" \
@@ -39,5 +40,5 @@ class ExperimentConfigs:
         f"{'_MaskBg' if self.ignore_background else ''}" \
         f"{'_HistEq' if self.hist_equalization else ''}" \
         f"{'_ZNorm' if self.Z_normalization else ''}" \
-        f"_V-{self.val_set}" \
-        f"{'_' + self.train_tag if self.train_tag else ''}"
+        f"{'_' + self.train_tag if self.train_tag else ''}" \
+        f"_V-{self.val_set}"
