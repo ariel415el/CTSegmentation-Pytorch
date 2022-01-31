@@ -9,8 +9,8 @@ from metrics import compute_segmentation_score, TverskyScore, compute_IOU
 
 
 def evaluate(model, dataloader, device, outputs_dir=None):
+    model.eval()
     with torch.no_grad():
-        model.eval()
         total_slices_per_sec = 0
         dice_scores = []
         iou_scores = []
@@ -36,7 +36,6 @@ def evaluate(model, dataloader, device, outputs_dir=None):
                 dir_path = os.path.join(outputs_dir, f"Case-{case_name}_Dice-{[f'{x:.3f}' for x in dice_per_class]}")
                 write_volume_slices(ct_volume[0], [pred_volume.argmax(dim=1)[0], gt_volume[0]], dir_path)
 
-        model.train()
         dice_scores = torch.stack(dice_scores).mean(0)
         iou_scores = torch.stack(iou_scores).mean(0)
         report = dict()
@@ -45,6 +44,7 @@ def evaluate(model, dataloader, device, outputs_dir=None):
             report[f'IOU-class-{i}'] = iou_scores[i]
 
         report["Slice/sec"] = total_slices_per_sec / len(dataloader)
+        model.train()
         return report
 
 

@@ -106,7 +106,7 @@ def get_datasets(data_config):
     Gather and split data paths and create datasets with according transforms
     param: split_mode: float for random split by percentage if validation cases or list of case numbers for the validation set
     """
-    data_paths = get_data_pathes(data_config.data_path)[:13]
+    data_paths = get_data_pathes(data_config.data_path)
     random.shuffle(data_paths)
 
     train_paths = []

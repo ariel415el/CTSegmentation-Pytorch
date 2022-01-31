@@ -57,8 +57,7 @@ def train(config, model_dir):
     train_model(model, dataloaders, model_dir, config)
 
 
-def test(config, model_dir, n_last_ckpts=3):
-
+def test(config, model_dir, n_last_ckpts=3, outputs_dir=None):
     # get dataloaders
     config.batch_size = 1
     train_loader, val_loader = get_dataloaders(config)
@@ -73,13 +72,13 @@ def test(config, model_dir, n_last_ckpts=3):
     if f'{model_dir}/best.pth' not in latest_ckpts:
         latest_ckpts.append(f'{model_dir}/best.pth')
     results = dict()
-    for ckpt_path in latest_ckpts:
+    for i, ckpt_path in enumerate(latest_ckpts):
         model.load_state_dict(torch.load(ckpt_path))
 
-        ckpt_name = os.path.basename(os.path.splitext(ckpt_path)[0])
+        ckpt_name = 'Best' if 'best' in ckpt_path else f'{i}-latest'
         logging.info(f'Evaluating checkpoint-{ckpt_name}')
-        train_report = evaluate(model, train_loader, config.device)
-        validation_report = evaluate(model, val_loader, config.device)
+        train_report = evaluate(model, train_loader, config.device, outputs_dir=outputs_dir)
+        validation_report = evaluate(model, val_loader, config.device, outputs_dir=outputs_dir)
 
         results.update({f"{ckpt_name}-{k}": f"{train_report[k]:.3f} / {validation_report[k]:.3f}" for k in train_report})
 
@@ -99,17 +98,20 @@ def run_single_experiment():
 def run_multiple_experiments():
     outputs_dir = "cluster_training"
     os.makedirs(outputs_dir, exist_ok=True)
-    logging.basicConfig(filename=os.path.join(outputs_dir, 'log.log'), format='%(asctime)s:%(message)s', level=logging.INFO, datefmt='%m-%d %H:%M:%S')
+    logging.basicConfig(filename=os.path.join(outputs_dir, 'log-file.log'), format='%(asctime)s:%(message)s', level=logging.INFO, datefmt='%m-%d %H:%M:%S')
 
     full_report = pd.DataFrame()
-    common_kwargs = dict(lr=0.00001, augment_data=True, Z_normalization=True, force_non_empty=True, ignore_background=True, batch_size=32, eval_freq=5, train_steps=10)
+    common_kwargs = dict(lr=0.00001, augment_data=True, Z_normalization=True, force_non_empty=True, ignore_background=True, batch_size=32, eval_freq=1000, train_steps=15000)
     for exp_config in [
             ExperimentConfigs(model_name='UNet', slice_size=1, **common_kwargs),
             ExperimentConfigs(model_name='VGGUNet', slice_size=1, **common_kwargs),
-            # ExperimentConfigs(model_name='VGGUNet2_5D', slice_size=3, **common_kwargs)
+            ExperimentConfigs(model_name='VGGUNet2_5D', slice_size=3, **common_kwargs)
     ]:
+        logging.info(f'#### {exp_config} ####')
         experiment_report = dict(Model_name=str(exp_config), N_slices=exp_config.train_steps * exp_config.batch_size * exp_config.slice_size)
-        for val_set in ['A', 'B']:#, 'C']:
+        for val_set in ['A', 'B', 'C']:
+            logging.info(f'# Validation set {val_set}')
+
             exp_config.val_set = val_set
             model_dir = f"{outputs_dir}/{exp_config}"
 
@@ -117,7 +119,7 @@ def run_multiple_experiments():
             train(exp_config, model_dir)
             train_time = time() - start
 
-            run_report = test(exp_config, model_dir, n_last_ckpts=2)
+            run_report = test(exp_config.copy(), model_dir, n_last_ckpts=2)
 
             experiment_report.update({f"{k}-{val_set}": v for k,v in run_report.items()})
             experiment_report[f"Train-Time-{val_set}"] = train_time

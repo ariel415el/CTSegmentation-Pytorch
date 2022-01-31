@@ -69,7 +69,8 @@ def train_model(model, dataloaders, train_dir, train_configs):
     step = 0
     model.train()
     max_score = -np.inf
-    while step < train_configs.train_steps:
+    done_training = False
+    while not done_training:
         for sample in train_loader:
             ct_volume = sample['ct'].to(device=device, dtype=torch.float32)
             gt_volume = sample['gt'].to(device=device, dtype=torch.long)
@@ -83,7 +84,7 @@ def train_model(model, dataloaders, train_dir, train_configs):
 
             # Evaluation
             if step % train_configs.eval_freq == 0:
-                debug_dir = "{train_dir}/eval-step-{step}" if train_configs.debug_images else None
+                debug_dir = f"{train_dir}/eval-step-{step}" if train_configs.debug_images else None
                 evaluation_report = evaluate(model, val_loader, train_configs.device, outputs_dir=debug_dir)
                 score = evaluation_report['Dice-class-1']
                 model.step_scheduler(score)
@@ -101,3 +102,6 @@ def train_model(model, dataloaders, train_dir, train_configs):
                     torch.save(ckpt, f'{train_dir}/best.pth')
 
             step += 1
+            if step > train_configs.train_steps:
+                done_training = True
+                break
