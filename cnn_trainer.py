@@ -42,37 +42,37 @@ class CNNTrainer:
             mask_volume = sample['mask'].to(device=self.config.device, dtype=torch.bool)
 
             loss = model.train_one_sample(ct_volume, gt_volume, mask_volume)
-            self.data['train-loss'].append(loss)
+            self.register_data({'train-loss': loss})
 
             self.pbar.update(self.config.batch_size * self.config.slice_size)
             self.pbar.set_description(f"Train-step: {self.step}/{self.config.train_steps}, lr: {model.optimizer.param_groups[0]['lr']:.10f}")
 
             # Evaluation
             if self.step % self.config.eval_freq == 0:
-                evaluation_report = evaluate(model, val_loader, self.config.device)
-                evaluation_report.pop("Slice/sec")
-                self.register_data(evaluation_report)
+                validation_report = evaluate(model, val_loader, self.config.device)
+                validation_report['val-loss'] = validation_report.pop('Loss')
+                self.register_data(validation_report)
                 self.plot()
 
-                self.save()
+                self.save_checkpoint(model, name='latest')
                 if self.is_last_smoothed_score_best('Dice-class-1'):
-                    torch.save(model.get_state_dict(), f'{self.train_dir}/best.pth')
+                    self.save_checkpoint(model, 'best')
 
             self.step += 1
             if self.step > self.config.train_steps:
                 break
 
-        self.train_time = time() - start
+        self.train_time += time() - start
 
     def is_last_smoothed_score_best(self, metric_name):
         return np.argmax(self.data_means[metric_name]) == len(self.data_means[metric_name]) - 1
 
-    def get_best_smoothed(self):
-        result = dict(Train_time=self.train_time)
+    def get_report(self):
+        report = dict(Train_time=self.train_time)
         for k, v in self.data_means.items():
             idx = np.argmax(v)
-            result[f'{k}-smoothed({self.smooth_score_size})'] = (f"Step={idx},score={v[idx]:.2f}")
-        return result
+            report[f'{k}-smoothed({self.smooth_score_size})'] = (f"Step={idx},score={v[idx]:.2f}")
+        return report
 
     def register_data(self, loss_dict):
         for k, v in loss_dict.items():
@@ -80,23 +80,28 @@ class CNNTrainer:
             self.data_means[k].append(np.mean(self.data[k][-self.smooth_score_size:]))
 
     def plot(self):
-        for k, v in self.data.items():
-            nvalues = len(self.data[k])
-            plt.plot(range(nvalues), self.data[k], label=k)
-            plt.plot(np.linspace(0, nvalues - 1, len(self.data_means[k])), self.data_means[k],label=f"avg-last-{self.smooth_score_size}")
+        metric_groups = [['train-loss', 'val-loss'], ['Dice-class-1']]
+        for metric_group in metric_groups:
+            nvalues = max([len(self.data[k]) for k in metric_group])
+            for k in metric_group:
+                plt.plot(np.linspace(0, nvalues - 1, len(self.data[k])), self.data[k],
+                         alpha=0.5, label=f"{k}: {self.data[k][-1]:.2f}")
+                plt.plot(np.linspace(0, nvalues - 1, len(self.data_means[k])), self.data_means[k],
+                         alpha=0.5, label=f"avg-last-{self.smooth_score_size}: {self.data_means[k][-1]:.2f}")
             plt.legend()
-            plt.savefig(f'{self.train_dir}/{k}.png')
+            plt.savefig(f'{self.train_dir}/Plot({",".join(metric_group)}).png')
             plt.clf()
 
-    def save(self):
-        torch.save(dict(step=self.step, data=self.data,data_means=self.data_means), f'{self.train_dir}/trainer.pt')
+    def get_state(self):
+        return dict(step=self.step, data=self.data, data_means=self.data_means, train_time=self.train_time)
 
-    def try_load(self):
-        path = os.path.join(self.train_dir, "trainer.pt")
-        if os.path.exists(path):
-            trainer_state = torch.load(path, map_location=self.config.device)
-            logging.info("loaded trainer from file")
-            self.step = trainer_state['step']
-            self.data = trainer_state['data']
-            self.data_means = trainer_state['data_means']
+    def save_checkpoint(self, model, name):
+        torch.save(dict(trainer=self.get_state(), model=model.get_state_dict()), f'{self.train_dir}/{name}.pth')
+
+    def load_state(self, trainer_state):
+        logging.info("loaded trainer from file")
+        self.step = trainer_state['step']
+        self.data = trainer_state['data']
+        self.data_means = trainer_state['data_means']
+        self.train_time = trainer_state['train_time']
 

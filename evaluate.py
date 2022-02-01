@@ -44,10 +44,10 @@ def evaluate(model, dataloader, device, outputs_dir=None):
         report = dict()
         for i in range(1, len(dice_scores)):
             report[f'Dice-class-{i}'] = dice_scores[i]
-            report[f'IOU-class-{i}'] = iou_scores[i]
+            # report[f'IOU-class-{i}'] = iou_scores[i]
 
-        report["val-loss"] = np.mean(loss_values)
-        report["Slice/sec"] = total_slices_per_sec / len(dataloader)
+        report["Loss"] = np.mean(loss_values)
+        # report["Slice/sec"] = total_slices_per_sec / len(dataloader)
         model.train()
         return report
 

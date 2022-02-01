@@ -36,7 +36,7 @@ class VGGUnetModel(UnetModel):
         loss.backward()
         self.optimizer.step()
 
-        return {"Dice+CE_loss": loss.item()}
+        return loss.item()
 
     def predict_volume(self, ct_volume):
         """

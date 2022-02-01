@@ -50,20 +50,22 @@ def train(config, model_dir):
     dataloaders = get_dataloaders(config)
 
     trainer = CNNTrainer(config, model_dir, smooth_score_size=10)
-    # trainer.try_load()
-    # model.load_state_dict(torch.load(os.path.join(model_dir, "best.pth"), map_location=config.device))
 
-    start = time()
-    train_time = time() - start
+    # Try to load checkpoint
+    if os.path.exists(os.path.join(model_dir, "latest.pth")):
+        logging.info("Starting from latest checkpoint")
+        ckpt = torch.load(os.path.join(model_dir, "latest.pth"))
+        trainer.load_state(ckpt['trainer'])
+        model.load_state_dict(ckpt['model'])
+
     trainer.train_model(model, dataloaders)
 
-    train_report = trainer.get_best_smoothed()
-    train_report['Train-time'] = f"{train_time:.1f}"
+    train_report = trainer.get_report()
 
     return train_report
 
 
-def test(config, model_dir, n_last_ckpts=3, outputs_dir=None):
+def test(config, model_dir, outputs_dir=None):
     # get dataloaders
     config.batch_size = 1
     train_loader, val_loader = get_dataloaders(config)
@@ -85,17 +87,16 @@ def test(config, model_dir, n_last_ckpts=3, outputs_dir=None):
 
 
 def run_single_experiment():
-    logging.basicConfig(stream=sys.stdout, level=logging.INFO)
     exp_config = ExperimentConfigs(model_name='UNet3D', lr=0.00001, slice_size=32, batch_size=2,
                                    augment_data=True, Z_normalization=True, force_non_empty=True, ignore_background=True,
-                                   train_steps=1000, eval_freq=100)
-    model_dir = f"{outputs_root}{os.path.basename(exp_config.data_path)}/{exp_config}"
+                                   train_steps=20, eval_freq=10)
+    model_dir = f"{outputs_root}/train_dir/{os.path.basename(exp_config.data_path)}/{exp_config}"
+    os.makedirs(model_dir, exist_ok=True)
+    logging.basicConfig(filename=f"{model_dir}/log-file.log", level=logging.INFO)
 
-    train(exp_config, model_dir)
-    test_report = test(exp_config, model_dir, n_last_ckpts=1)
+    train_report = train(exp_config, model_dir)
 
-    logging.info(test_report)
-    print(test_report)
+    print(train_report)
 
 
 def run_multiple_experiments():
@@ -104,7 +105,7 @@ def run_multiple_experiments():
     logging.basicConfig(filename=os.path.join(outputs_dir, 'log-file.log'), format='%(asctime)s:%(message)s', level=logging.INFO, datefmt='%m-%d %H:%M:%S')
 
     full_report = pd.DataFrame()
-    common_kwargs = dict(lr=0.00001, augment_data=True, Z_normalization=True, force_non_empty=True, ignore_background=True, batch_size=32, eval_freq=1000, train_steps=15000)
+    common_kwargs = dict(lr=0.00001, augment_data=True, Z_normalization=True, force_non_empty=True, ignore_background=True, batch_size=32, eval_freq=5, train_steps=10)
     for exp_config in [
             ExperimentConfigs(model_name='UNet', slice_size=1, **common_kwargs),
             ExperimentConfigs(model_name='VGGUNet', slice_size=1, **common_kwargs),
@@ -119,11 +120,10 @@ def run_multiple_experiments():
             model_dir = f"{outputs_dir}/{exp_config}"
 
             train_report = train(exp_config, model_dir)
-
-            test_report = test(copy(exp_config), model_dir, n_last_ckpts=2)
-
             experiment_report.update({f"{k}-{val_set}": v for k,v in train_report.items()})
-            experiment_report.update({f"{k}-{val_set}": v for k,v in test_report.items()})
+
+            # test_report = test(copy(exp_config), model_dir, n_last_ckpts=2)
+            # experiment_report.update({f"{k}-{val_set}": v for k,v in test_report.items()})
 
         full_report = full_report.append(experiment_report, ignore_index=True)
         full_report.to_csv(os.path.join(outputs_dir, f"tmp-report.csv"), sep=',')
@@ -133,8 +133,8 @@ def run_multiple_experiments():
 
 
 if __name__ == '__main__':
-    outputs_root = '/mnt/storage_ssd/train_dir/'
+    outputs_root = '/mnt/storage_ssd/train_outputs'
     random.seed(1)
     torch.manual_seed(1)
-    run_single_experiment()
-    # run_multiple_experiments()
+    # run_single_experiment()
+    run_multiple_experiments()
