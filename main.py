@@ -50,10 +50,19 @@ def train(config, model_dir):
 
     dataloaders = get_dataloaders(config)
 
-    logging.info('Training..')
     trainer = CNNTrainer(config, model_dir, smooth_score_size=10)
     # trainer.try_load(os.path.join(model_dir, "trainer.pt"))
+
+    logging.info('Training..')
+
+    start = time()
     trainer.train_model(model, dataloaders)
+    train_time = time() - start
+
+    train_report = trainer.get_best_smoothed()
+    train_report['Train-time'] = train_time
+
+    return train_report
 
 
 def test(config, model_dir, n_last_ckpts=3, outputs_dir=None):
@@ -91,8 +100,8 @@ def run_single_experiment():
                                    train_steps=200000, eval_freq=1000)
     model_dir = f"/mnt/storage_ssd/train_dir/{os.path.basename(exp_config.data_path)}/{exp_config}"
     train(exp_config, model_dir)
-    train_report, validation_report = test(exp_config, model_dir, n_last_ckpts=1)
-    logging.info({f"{k}": f"{train_report[k]:.3f} / {validation_report[k]:.3f}" for k in train_report})
+    test_report = test(exp_config, model_dir, n_last_ckpts=1)
+    logging.info(test_report)
     print(train_report)
 
 
@@ -116,14 +125,12 @@ def run_multiple_experiments():
             exp_config.val_set = val_set
             model_dir = f"{outputs_dir}/{exp_config}"
 
-            start = time()
-            train(exp_config, model_dir)
-            train_time = time() - start
+            train_report = train(exp_config, model_dir)
 
-            run_report = test(exp_config.copy(), model_dir, n_last_ckpts=2)
+            test_report = test(exp_config.copy(), model_dir, n_last_ckpts=2)
 
+            experiment_report.update({f"{k}-{val_set}": v for k,v in train_report.items()})
             experiment_report.update({f"{k}-{val_set}": v for k,v in run_report.items()})
-            experiment_report[f"Train-Time-{val_set}"] = train_time
 
         full_report = full_report.append(experiment_report, ignore_index=True)
         full_report.to_csv(os.path.join(outputs_dir, f"tmp-report.csv"), sep=',')
