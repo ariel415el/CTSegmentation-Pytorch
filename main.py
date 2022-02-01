@@ -11,7 +11,7 @@ from time import time
 from datetime import datetime
 from datasets.ct_dataset import get_dataloaders
 from evaluate import evaluate
-from train import train_model
+from cnn_trainer import CNNTrainer
 
 import models
 from config import *
@@ -46,15 +46,14 @@ def get_model(config):
 
 
 def train(config, model_dir):
-    random.seed(1)
-    torch.manual_seed(1)
-
     model = get_model(config)
 
     dataloaders = get_dataloaders(config)
 
     logging.info('Training..')
-    train_model(model, dataloaders, model_dir, config)
+    trainer = CNNTrainer(config, model_dir, smooth_score_size=10)
+    # trainer.try_load(os.path.join(model_dir, "trainer.pt"))
+    trainer.train_model(model, dataloaders)
 
 
 def test(config, model_dir, n_last_ckpts=3, outputs_dir=None):
@@ -87,8 +86,10 @@ def test(config, model_dir, n_last_ckpts=3, outputs_dir=None):
 
 def run_single_experiment():
     logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
-    exp_config = ExperimentConfigs(model_name='UNet', slice_size=1, augment_data=True, Z_normalization=True, train_steps=200, eval_freq=100)
-    model_dir = f"train_dir/{os.path.basename(exp_config.data_path)}/{exp_config}"
+    exp_config = ExperimentConfigs(model_name='UNet3D', lr=0.00001, slice_size=32, batch_size=2,
+                                   augment_data=True, Z_normalization=True, force_non_empty=True, ignore_background=True,
+                                   train_steps=200000, eval_freq=1000)
+    model_dir = f"/mnt/storage_ssd/train_dir/{os.path.basename(exp_config.data_path)}/{exp_config}"
     train(exp_config, model_dir)
     train_report, validation_report = test(exp_config, model_dir, n_last_ckpts=1)
     logging.info({f"{k}": f"{train_report[k]:.3f} / {validation_report[k]:.3f}" for k in train_report})
@@ -135,5 +136,7 @@ def run_multiple_experiments():
     #                   learnable_upsamples=True)
 
 if __name__ == '__main__':
-    # run_single_experiment()
-    run_multiple_experiments()
+    random.seed(1)
+    torch.manual_seed(1)
+    run_single_experiment()
+    # run_multiple_experiments()

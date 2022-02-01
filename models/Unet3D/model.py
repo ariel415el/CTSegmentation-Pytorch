@@ -11,11 +11,9 @@ class UNet3DModel(SegmentationModel):
         super(UNet3DModel, self).__init__(1, n_classes)
         self.net = UNet3D(1, n_classes, trilinear=trilinear)
         self.slice_size = slice_size
-        self.optimizer = optim.RMSprop(self.net.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
-        # self.optimizer = optim.Adam(self.net.parameters(), lr=lr)
-        # self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'max', patience=10)  # goal: maximize val Dice score
+        self.optimizer = optim.Adam(self.net.parameters(), lr=lr)
 
-    def train_one_sample(self, ct_volume, gt_volume, mask_volume, global_step):
+    def train_one_sample(self, ct_volume, gt_volume, mask_volume):
         self.net.train()
         pred = self.net(ct_volume)
 
@@ -26,12 +24,6 @@ class UNet3DModel(SegmentationModel):
         self.optimizer.step()
 
         return {"Dice_loss": loss.item()}
-
-    def step_scheduler(self, evaluation_score):
-        pass
-        # self.scheduler.step(evaluation_score)
-        # for g in self.optimizer.param_groups:
-        #     g['lr'] *= 0.95
 
     def predict_volume(self, ct_volume, overlap=None):
         """

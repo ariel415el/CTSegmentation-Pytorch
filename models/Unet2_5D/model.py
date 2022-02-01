@@ -11,11 +11,10 @@ class Unet2_5DModel(SegmentationModel):
         # assert slice_size % 2 == 1, "slice size  should be odd"
         assert slice_size == 3, "Currently only slice size=3 is suppported "
         self.net = UNet(slice_size, n_classes, bilinear=bilinear, bias=bias)
-        self.optimizer = optim.RMSprop(self.net.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
-        self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'max', patience=5)  # goal: maximize val Dice score
+        self.optimizer = optim.Adam(self.net.parameters())
         self.eval_batchsize = eval_batchsize
 
-    def train_one_sample(self, ct_volume, gt_volume, mask_volume, global_step):
+    def train_one_sample(self, ct_volume, gt_volume, mask_volume):
         B, S, H, W = ct_volume.shape
         m = 1
         self.train()
@@ -30,9 +29,6 @@ class Unet2_5DModel(SegmentationModel):
         self.optimizer.step()
 
         return {"Dice+CE_loss": loss.item()}
-
-    def step_scheduler(self, evaluation_score):
-        self.scheduler.step(evaluation_score)
 
     def predict_volume(self, ct_volume):
         """

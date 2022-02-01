@@ -7,16 +7,10 @@ class SegmentationModel:
         self.n_channels = n_channels
         self.n_classes = n_classes
 
-    def train_one_sample(self, ct_volume, gt_volume, mask, global_step):
+    def train_one_sample(self, ct_volume, gt_volume, mask):
         """
         Train this model on a single sample.
         Returns a dictionary of loss values.
-        """
-        raise NotImplementedError()
-
-    def step_scheduler(self, evaluation_score):
-        """
-        step the learning rate scheduler
         """
         raise NotImplementedError()
 

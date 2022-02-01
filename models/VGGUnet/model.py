@@ -26,7 +26,7 @@ class VGGUnetModel(UnetModel):
         super(VGGUnetModel, self).__init__(3, n_classes, lr, bilinear, eval_batchsize=eval_batchsize, bias=True)
         load_vgg_weights(self.net)
 
-    def train_one_sample(self, ct_volume, gt_volume, mask_volume, global_step):
+    def train_one_sample(self, ct_volume, gt_volume, mask_volume):
         self.train()
         pred = self.net(ct_volume.repeat(1, 3, 1, 1))
 
