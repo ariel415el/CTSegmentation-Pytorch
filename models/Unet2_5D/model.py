@@ -2,7 +2,7 @@ import torch
 from torch import nn, optim
 from metrics import VolumeLoss
 from models.Unet.net import UNet
-from models.generic_model import SegmentationModel
+from models.generic_model import SegmentationModel, optimizer_to
 
 
 class Unet2_5DModel(SegmentationModel):
@@ -67,3 +67,4 @@ class Unet2_5DModel(SegmentationModel):
 
     def to(self, device):
         self.net.to(device=device)
+        optimizer_to(self.optimizer, device)

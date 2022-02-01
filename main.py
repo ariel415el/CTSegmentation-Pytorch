@@ -54,7 +54,7 @@ def train(config, model_dir):
     # Try to load checkpoint
     if os.path.exists(os.path.join(model_dir, "latest.pth")):
         logging.info("Starting from latest checkpoint")
-        ckpt = torch.load(os.path.join(model_dir, "latest.pth"))
+        ckpt = torch.load(os.path.join(model_dir, "latest.pth"), map_location=torch.device("cpu"))
         trainer.load_state(ckpt['trainer'])
         model.load_state_dict(ckpt['model'])
 
@@ -89,7 +89,7 @@ def test(config, model_dir, outputs_dir=None):
 def run_single_experiment():
     exp_config = ExperimentConfigs(model_name='UNet3D', lr=0.00001, slice_size=32, batch_size=2,
                                    augment_data=True, Z_normalization=True, force_non_empty=True, ignore_background=True,
-                                   train_steps=20, eval_freq=10)
+                                   train_steps=200000, eval_freq=1000)
     model_dir = f"{outputs_root}/train_dir/{os.path.basename(exp_config.data_path)}/{exp_config}"
     os.makedirs(model_dir, exist_ok=True)
     logging.basicConfig(filename=f"{model_dir}/log-file.log", level=logging.INFO)
@@ -105,7 +105,7 @@ def run_multiple_experiments():
     logging.basicConfig(filename=os.path.join(outputs_dir, 'log-file.log'), format='%(asctime)s:%(message)s', level=logging.INFO, datefmt='%m-%d %H:%M:%S')
 
     full_report = pd.DataFrame()
-    common_kwargs = dict(lr=0.00001, augment_data=True, Z_normalization=True, force_non_empty=True, ignore_background=True, batch_size=32, eval_freq=5, train_steps=10)
+    common_kwargs = dict(lr=0.00001, augment_data=True, Z_normalization=True, force_non_empty=True, ignore_background=True, batch_size=32, eval_freq=1000, train_steps=200000)
     for exp_config in [
             ExperimentConfigs(model_name='UNet', slice_size=1, **common_kwargs),
             ExperimentConfigs(model_name='VGGUNet', slice_size=1, **common_kwargs),
@@ -136,5 +136,5 @@ if __name__ == '__main__':
     outputs_root = '/mnt/storage_ssd/train_outputs'
     random.seed(1)
     torch.manual_seed(1)
-    # run_single_experiment()
-    run_multiple_experiments()
+    run_single_experiment()
+    # run_multiple_experiments()

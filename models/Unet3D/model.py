@@ -4,7 +4,8 @@ from metrics import VolumeLoss
 from models.Unet3D.net import UNet3D, UNet3D_new
 from torch import optim
 
-from models.generic_model import SegmentationModel
+from models.generic_model import SegmentationModel, optimizer_to
+
 
 class UNet3DModel(SegmentationModel):
     def __init__(self, n_classes, trilinear, slice_size=16, lr=0.0001):
@@ -65,3 +66,4 @@ class UNet3DModel(SegmentationModel):
 
     def to(self, device):
         self.net.to(device=device)
+        optimizer_to(self.optimizer, device)

@@ -1,5 +1,4 @@
 import torch
-from torch import nn
 from metrics import VolumeLoss
 from models.Unet.model import UnetModel
 from models.Unet2_5D.model import Unet2_5DModel
@@ -7,7 +6,6 @@ from torchvision.models import vgg13_bn
 
 
 def load_vgg_weights(unet):
-    # load vgg weights
     vgg = vgg13_bn(pretrained=True)
     unet.inc.double_conv.load_state_dict(vgg.features[:6].state_dict())
     for i in range(6):
