@@ -1,7 +1,7 @@
 import torch
 
 from models.Vnet.net import VNet
-from metrics import compute_segmentation_loss, TverskyScore
+from metrics import VolumeLoss
 from torch import optim
 
 from models.generic_model import SegmentationModel

@@ -1,7 +1,7 @@
 import torch
 from torch import nn, optim
 from models.Unet.net import UNet
-from metrics import SliceLoss
+from metrics import VolumeLoss
 from models.generic_model import SegmentationModel
 
 
@@ -17,13 +17,13 @@ class UnetModel(SegmentationModel):
         self.net.train()
         pred = self.net(ct_volume)
 
-        loss = SliceLoss(pred, gt_volume, mask_volume)
+        loss = VolumeLoss(pred.unsqueeze(2), gt_volume, mask_volume)
 
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
 
-        return {"Dice+CE_loss": loss.item()}
+        return loss.item()
 
     def predict_volume(self, ct_volume):
         """

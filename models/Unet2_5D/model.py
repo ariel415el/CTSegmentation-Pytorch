@@ -1,6 +1,6 @@
 import torch
 from torch import nn, optim
-from metrics import compute_segmentation_loss, TverskyScore, SliceLoss
+from metrics import VolumeLoss
 from models.Unet.net import UNet
 from models.generic_model import SegmentationModel
 
@@ -22,7 +22,7 @@ class Unet2_5DModel(SegmentationModel):
         middle_mask = mask_volume[:, m:m+1]
         middle_pred = self.net(ct_volume)
 
-        loss = SliceLoss(middle_pred, middle_gt, middle_mask)
+        loss = VolumeLoss(middle_pred.unsqueeze(2), middle_gt, middle_mask)
 
         self.optimizer.zero_grad()
         loss.backward()

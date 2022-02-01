@@ -23,7 +23,7 @@ class UNet3DModel(SegmentationModel):
         loss.backward()
         self.optimizer.step()
 
-        return {"Dice_loss": loss.item()}
+        return loss.item()
 
     def predict_volume(self, ct_volume, overlap=None):
         """
@@ -39,9 +39,9 @@ class UNet3DModel(SegmentationModel):
             for i in range(0, ct_volume.shape[-3] - self.slice_size, overlap):
                 pred_volume[..., i: i + self.slice_size, :, :] += self.net(ct_volume[..., i: i + self.slice_size, :, :])
                 pred_counters[..., i: i + self.slice_size, :, :] += 1
-        if i < ct_volume.shape[-3] - overlap - 1:
-            pred_volume[..., -overlap:, :, :] += self.net(ct_volume[..., -overlap:, :, :])
-            pred_counters[..., -overlap:, :, :] += 1
+            if i < ct_volume.shape[-3] - overlap - 1:
+                pred_volume[..., -overlap:, :, :] += self.net(ct_volume[..., -overlap:, :, :])
+                pred_counters[..., -overlap:, :, :] += 1
 
         nwhere = pred_counters != 0
         pred_volume[nwhere] /= pred_counters[nwhere]

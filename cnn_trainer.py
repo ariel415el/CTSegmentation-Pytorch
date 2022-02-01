@@ -1,5 +1,7 @@
 import os
 from collections import defaultdict
+import logging
+from time import time
 
 import numpy as np
 import torch
@@ -8,6 +10,12 @@ from tqdm import tqdm
 
 from evaluate import evaluate
 from config import *
+
+
+def iterate_dataloader(dataloader):
+    while True:
+        for sample in dataloader:
+            yield sample
 
 
 class CNNTrainer:
@@ -20,46 +28,50 @@ class CNNTrainer:
         self.data = defaultdict(list)
         self.data_means = defaultdict(list)
         self.smooth_score_size = smooth_score_size
+        self.train_time = 0
 
     def train_model(self, model, dataloaders):
         model.to(self.config.device)
         model.train()
         train_loader, val_loader = dataloaders
+        logging.info('Training..')
+        start = time()
+        for sample in iterate_dataloader(train_loader):
+            ct_volume = sample['ct'].to(device=self.config.device, dtype=torch.float32)
+            gt_volume = sample['gt'].to(device=self.config.device, dtype=torch.long)
+            mask_volume = sample['mask'].to(device=self.config.device, dtype=torch.bool)
 
-        done_training = False
-        while not done_training:
-            for sample in train_loader:
-                ct_volume = sample['ct'].to(device=self.config.device, dtype=torch.float32)
-                gt_volume = sample['gt'].to(device=self.config.device, dtype=torch.long)
-                mask_volume = sample['mask'].to(device=self.config.device, dtype=torch.bool)
+            loss = model.train_one_sample(ct_volume, gt_volume, mask_volume)
+            self.data['train-loss'].append(loss)
 
-                losses = model.train_one_sample(ct_volume, gt_volume, mask_volume)
-                self.register_data(losses)
+            self.pbar.update(self.config.batch_size * self.config.slice_size)
+            self.pbar.set_description(f"Train-step: {self.step}/{self.config.train_steps}, lr: {model.optimizer.param_groups[0]['lr']:.10f}")
 
-                self.pbar.update(self.config.batch_size * self.config.slice_size)
-                self.pbar.set_description(
-                    f"Train-step: {self.step}/{self.config.train_steps}, Losses: {','.join([f'{k}: {v:.3f}' for k, v in losses.items()])}, lr: {model.optimizer.param_groups[0]['lr']:.10f}")
+            # Evaluation
+            if self.step % self.config.eval_freq == 0:
+                evaluation_report = evaluate(model, val_loader, self.config.device)
+                evaluation_report.pop("Slice/sec")
+                self.register_data(evaluation_report)
+                self.plot()
 
-                # Evaluation
-                if self.step % self.config.eval_freq == 0:
-                    debug_dir = f"{self.train_dir}/eval-step-{self.step}" if self.config.debug_images else None
-                    evaluation_report = evaluate(model, val_loader, self.config.device, outputs_dir=debug_dir)
-                    evaluation_report.pop("Slice/sec")
-                    self.register_data(evaluation_report)
-                    self.plot()
-
+                self.save()
+                if self.is_last_smoothed_score_best('Dice-class-1'):
                     torch.save(model.get_state_dict(), f'{self.train_dir}/best.pth')
-                    self.save(f'{self.train_dir}/trainer.pt')
-                self.step += 1
-                if self.step > self.config.train_steps:
-                    done_training = True
-                    break
+
+            self.step += 1
+            if self.step > self.config.train_steps:
+                break
+
+        self.train_time = time() - start
+
+    def is_last_smoothed_score_best(self, metric_name):
+        return np.argmax(self.data_means[metric_name]) == len(self.data_means[metric_name]) - 1
 
     def get_best_smoothed(self):
-        result = dict()
+        result = dict(Train_time=self.train_time)
         for k, v in self.data_means.items():
             idx = np.argmax(v)
-            result[f'{k}-smoothed({smooth_score_size})'] = (v[idx], idx)
+            result[f'{k}-smoothed({self.smooth_score_size})'] = (f"Step={idx},score={v[idx]:.2f}")
         return result
 
     def register_data(self, loss_dict):
@@ -76,11 +88,15 @@ class CNNTrainer:
             plt.savefig(f'{self.train_dir}/{k}.png')
             plt.clf()
 
-    def save(self, path):
-        torch.save(dict(step=self.step, data=self.data,data_means=self.data_means), path)
+    def save(self):
+        torch.save(dict(step=self.step, data=self.data,data_means=self.data_means), f'{self.train_dir}/trainer.pt')
 
-    def try_load(self, path):
+    def try_load(self):
+        path = os.path.join(self.train_dir, "trainer.pt")
         if os.path.exists(path):
-            model = torch.load(path)['trainer']
-
+            trainer_state = torch.load(path, map_location=self.config.device)
+            logging.info("loaded trainer from file")
+            self.step = trainer_state['step']
+            self.data = trainer_state['data']
+            self.data_means = trainer_state['data_means']
 

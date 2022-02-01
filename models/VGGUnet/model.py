@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-from metrics import compute_segmentation_loss, TverskyScore, SliceLoss
+from metrics import VolumeLoss
 from models.Unet.model import UnetModel
 from models.Unet2_5D.model import Unet2_5DModel
 from torchvision.models import vgg13_bn
@@ -30,7 +30,7 @@ class VGGUnetModel(UnetModel):
         self.train()
         pred = self.net(ct_volume.repeat(1, 3, 1, 1))
 
-        loss = SliceLoss(pred, gt_volume, mask_volume)
+        loss = VolumeLoss(pred.unsqueeze(2), gt_volume, mask_volume)
 
         self.optimizer.zero_grad()
         loss.backward()

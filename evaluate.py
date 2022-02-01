@@ -5,7 +5,7 @@ import numpy as np
 import torch
 
 from datasets.visualize_data import write_volume_slices
-from metrics import compute_segmentation_score, TverskyScore, compute_IOU
+from metrics import compute_segmentation_score, TverskyScore, compute_IOU, VolumeLoss
 
 
 def evaluate(model, dataloader, device, outputs_dir=None):
@@ -14,6 +14,7 @@ def evaluate(model, dataloader, device, outputs_dir=None):
         total_slices_per_sec = 0
         dice_scores = []
         iou_scores = []
+        loss_values = []
         # iterate over the validation set
         for b_idx, sample in enumerate(dataloader):
             ct_volume = sample['ct'].to(device=device, dtype=torch.float32)
@@ -28,9 +29,11 @@ def evaluate(model, dataloader, device, outputs_dir=None):
 
             dice_per_class = compute_segmentation_score(TverskyScore(0.5, 0.5), pred_volume, gt_volume.unsqueeze(1), mask_volume.unsqueeze(1), return_per_class=True)
             iou_per_calss = compute_segmentation_score(compute_IOU, pred_volume, gt_volume.unsqueeze(1), mask_volume.unsqueeze(1), return_per_class=True)
+            loss = VolumeLoss(pred_volume, gt_volume, mask_volume)
             dice_scores.append(dice_per_class)
             iou_scores.append(iou_per_calss)
-            #
+            loss_values.append(loss.item())
+
             # plot volume
             if outputs_dir is not None:
                 dir_path = os.path.join(outputs_dir, f"Case-{case_name}_Dice-{[f'{x:.3f}' for x in dice_per_class]}")
@@ -43,6 +46,7 @@ def evaluate(model, dataloader, device, outputs_dir=None):
             report[f'Dice-class-{i}'] = dice_scores[i]
             report[f'IOU-class-{i}'] = iou_scores[i]
 
+        report["val-loss"] = np.mean(loss_values)
         report["Slice/sec"] = total_slices_per_sec / len(dataloader)
         model.train()
         return report

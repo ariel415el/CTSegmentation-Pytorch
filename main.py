@@ -3,7 +3,7 @@ import logging
 import os
 import random
 import sys
-
+from copy import copy
 import pandas as pd
 import torch
 from time import time
@@ -47,20 +47,18 @@ def get_model(config):
 
 def train(config, model_dir):
     model = get_model(config)
-
     dataloaders = get_dataloaders(config)
 
     trainer = CNNTrainer(config, model_dir, smooth_score_size=10)
-    # trainer.try_load(os.path.join(model_dir, "trainer.pt"))
-
-    logging.info('Training..')
+    # trainer.try_load()
+    # model.load_state_dict(torch.load(os.path.join(model_dir, "best.pth"), map_location=config.device))
 
     start = time()
-    trainer.train_model(model, dataloaders)
     train_time = time() - start
+    trainer.train_model(model, dataloaders)
 
     train_report = trainer.get_best_smoothed()
-    train_report['Train-time'] = train_time
+    train_report['Train-time'] = f"{train_time:.1f}"
 
     return train_report
 
@@ -75,38 +73,33 @@ def test(config, model_dir, n_last_ckpts=3, outputs_dir=None):
     model = get_model(config)
     model.to(config.device)
 
-    # get checkpint paths
-    latest_ckpts = sorted(glob.glob(f'{model_dir}/*.pth'), key=os.path.getctime)[-n_last_ckpts:]
-    if f'{model_dir}/best.pth' not in latest_ckpts:
-        latest_ckpts.append(f'{model_dir}/best.pth')
-    results = dict()
-    for i, ckpt_path in enumerate(latest_ckpts):
-        model.load_state_dict(torch.load(ckpt_path))
+    model.load_state_dict(torch.load(f'{model_dir}/best.pth'))
 
-        ckpt_name = 'Best' if 'best' in ckpt_path else f'{i}-latest'
-        logging.info(f'Evaluating checkpoint-{ckpt_name}')
-        train_report = evaluate(model, train_loader, config.device, outputs_dir=outputs_dir)
-        validation_report = evaluate(model, val_loader, config.device, outputs_dir=outputs_dir)
+    logging.info(f'Evaluating best checkpoint')
+    train_report = evaluate(model, train_loader, config.device, outputs_dir=outputs_dir)
+    validation_report = evaluate(model, val_loader, config.device, outputs_dir=outputs_dir)
 
-        results.update({f"{ckpt_name}-{k}": f"{train_report[k]:.3f} / {validation_report[k]:.3f}" for k in train_report})
+    report = {f"best-{k}": f"{train_report[k]:.3f} / {validation_report[k]:.3f}" for k in train_report}
 
-    return results
+    return report
 
 
 def run_single_experiment():
-    logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+    logging.basicConfig(stream=sys.stdout, level=logging.INFO)
     exp_config = ExperimentConfigs(model_name='UNet3D', lr=0.00001, slice_size=32, batch_size=2,
                                    augment_data=True, Z_normalization=True, force_non_empty=True, ignore_background=True,
-                                   train_steps=200000, eval_freq=1000)
-    model_dir = f"/mnt/storage_ssd/train_dir/{os.path.basename(exp_config.data_path)}/{exp_config}"
+                                   train_steps=1000, eval_freq=100)
+    model_dir = f"{outputs_root}{os.path.basename(exp_config.data_path)}/{exp_config}"
+
     train(exp_config, model_dir)
     test_report = test(exp_config, model_dir, n_last_ckpts=1)
+
     logging.info(test_report)
-    print(train_report)
+    print(test_report)
 
 
 def run_multiple_experiments():
-    outputs_dir = "cluster_training"
+    outputs_dir = f"{outputs_root}/cluster_training"
     os.makedirs(outputs_dir, exist_ok=True)
     logging.basicConfig(filename=os.path.join(outputs_dir, 'log-file.log'), format='%(asctime)s:%(message)s', level=logging.INFO, datefmt='%m-%d %H:%M:%S')
 
@@ -127,10 +120,10 @@ def run_multiple_experiments():
 
             train_report = train(exp_config, model_dir)
 
-            test_report = test(exp_config.copy(), model_dir, n_last_ckpts=2)
+            test_report = test(copy(exp_config), model_dir, n_last_ckpts=2)
 
             experiment_report.update({f"{k}-{val_set}": v for k,v in train_report.items()})
-            experiment_report.update({f"{k}-{val_set}": v for k,v in run_report.items()})
+            experiment_report.update({f"{k}-{val_set}": v for k,v in test_report.items()})
 
         full_report = full_report.append(experiment_report, ignore_index=True)
         full_report.to_csv(os.path.join(outputs_dir, f"tmp-report.csv"), sep=',')
@@ -138,11 +131,9 @@ def run_multiple_experiments():
     full_report = full_report.set_index('Model_name')
     full_report.to_csv(os.path.join(outputs_dir, f"Final-report.csv"), sep=',')
 
-    # ExperimentConfigs(model_name='UNet3D', lr=0.0001, augment_data=True,
-    #                   ignore_background=True, slice_size=16, batch_size=2, eval_freq=100,
-    #                   learnable_upsamples=True)
 
 if __name__ == '__main__':
+    outputs_root = '/mnt/storage_ssd/train_dir/'
     random.seed(1)
     torch.manual_seed(1)
     run_single_experiment()
