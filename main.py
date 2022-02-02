@@ -122,9 +122,6 @@ def run_multiple_experiments():
             train_report = train(exp_config, model_dir)
             experiment_report.update({f"{k}-{val_set}": v for k,v in train_report.items()})
 
-            # test_report = test(copy(exp_config), model_dir, n_last_ckpts=2)
-            # experiment_report.update({f"{k}-{val_set}": v for k,v in test_report.items()})
-
         full_report = full_report.append(experiment_report, ignore_index=True)
         full_report.to_csv(os.path.join(outputs_dir, f"tmp-report.csv"), sep=',')
 

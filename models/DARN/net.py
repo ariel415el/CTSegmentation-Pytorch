@@ -92,6 +92,7 @@ class SemRef(nn.Module):
         new_maps = lower_level_map + self.conv_IN_LR(lower_level_map) * attention_weights
         return new_maps
 
+
 class SpaRef(nn.Module):
     """Downscaling with maxpool then double conv"""
     def __init__(self, low_in_channels, high_in_channels, bias=False):
@@ -117,6 +118,7 @@ class SpaRef(nn.Module):
         weighted_higer_map = higher_level_map + attention_map * higher_level_map
         new_maps = self.conv_3(weighted_higer_map)
         return new_maps
+
 
 class DARN(nn.Module):
     def __init__(self, n_channels, n_classes, trilinear=True, bias=False):

@@ -1,46 +1,31 @@
 import torch
 
 from models.DARN.net import DARN
-from metrics import compute_segmentation_loss, TverskyScore
+from metrics import VolumeLoss
 from torch import optim
 
-from models.generic_model import SegmentationModel
-
-
-def multipleVolumeSLoss(pred_maps, gts, mask):
-    """
-    :param preds: list of float arrays of shape (b, n_class, slices, H, W) contating class logits
-    :param gts: uint8 array of shape (b, slices, H, W) containing segmentation labels
-    :param mask: bool array of shape (b, slices, H, W) containing segmentation labels
-    """
-    dice_loss = 0
-    for preds in pred_maps:
-        dice_loss += compute_segmentation_loss(TverskyScore(0.5, 0.5), preds, gts.unsqueeze(1), mask.unsqueeze(1))
-    return dice_loss
+from models.generic_model import SegmentationModel, optimizer_to
 
 
 class DARNModel(SegmentationModel):
-    def __init__(self, n_channels, n_classes, slice_size, lr, device):
-        super(DARNModel, self).__init__(n_channels, n_classes, device)
-        self.net = DARN(n_channels, n_classes).to(device)
+    def __init__(self, n_channels, n_classes, slice_size, lr):
+        super(DARNModel, self).__init__(n_channels, n_classes)
+        self.net = DARN(n_channels, n_classes)
         self.slice_size = slice_size
-        self.optimizer = optim.RMSprop(self.net.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
-        self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'max', patience=2)  # goal: maximize val Dice score
+        self.optimizer = optim.Adam(self.net.parameters(), lr=lr)
 
-    def train_one_sample(self, ct_volume, gt_volume, mask_volume, global_step):
+    def train_one_sample(self, ct_volume, gt_volume, mask_volume):
         self.net.train()
-        _, intermediate_maps = self.net(ct_volume)
+        pred, intermediate_maps = self.net(ct_volume)
 
-        loss = multipleVolumeSLoss(intermediate_maps, gt_volume, mask_volume)
+        # deep_loss = multipleVolumeSLoss(intermediate_maps, gt_volume, mask_volume)
+        loss = VolumeLoss(pred, gt_volume, mask_volume)
 
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
 
-        return {"Dice_loss": loss.item()}
-
-    def step_scheduler(self, evaluation_score):
-        self.scheduler.step(evaluation_score)
+        return loss.item()
 
     def predict_volume(self, ct_volume, overlap=None):
         """
@@ -66,6 +51,10 @@ class DARNModel(SegmentationModel):
         pred_volume[nwhere] /= pred_counters[nwhere]
         return pred_volume
 
+    def decay_learning_rate(self, factor):
+        for g in self.optimizer.param_groups:
+            g['lr'] *= factor
+
     def get_state_dict(self):
         return {
             'net': self.net.state_dict(),
@@ -81,3 +70,7 @@ class DARNModel(SegmentationModel):
 
     def eval(self):
         self.net.eval()
+
+    def to(self, device):
+        self.net.to(device=device)
+        optimizer_to(self.optimizer, device)

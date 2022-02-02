@@ -44,7 +44,7 @@ class CNNTrainer:
             loss = model.train_one_sample(ct_volume, gt_volume, mask_volume)
             self.register_data({'train-loss': loss})
 
-            self.pbar.update(self.config.batch_size * self.config.slice_size)
+            self.pbar.update(ct_volume.shape[0] * ct_volume.shape[-3])
             self.pbar.set_description(f"Train-step: {self.step}/{self.config.train_steps}, lr: {model.optimizer.param_groups[0]['lr']:.10f}")
 
             # Evaluation
@@ -68,10 +68,11 @@ class CNNTrainer:
         return np.argmax(self.data_means[metric_name]) == len(self.data_means[metric_name]) - 1
 
     def get_report(self):
-        report = dict(Train_time=self.train_time)
+        report = {'Train time (H)': self.train_time}
         for k, v in self.data_means.items():
             idx = np.argmax(v)
-            report[f'{k}-smoothed({self.smooth_score_size})'] = (f"Step={idx},score={v[idx]:.2f}")
+            report[f'{k}-({self.smooth_score_size}-smooth) Step'] = idx
+            report[f'{k}-({self.smooth_score_size}-smooth) Score'] = f"{v[idx]:.2f}"
         return report
 
     def register_data(self, loss_dict):

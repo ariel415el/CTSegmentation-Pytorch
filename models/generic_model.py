@@ -35,6 +35,8 @@ class SegmentationModel:
     def to(self, device):
         raise NotImplementedError()
 
+    def decay_learning_rate(self, factor):
+        raise NotImplementedError()
 
 def optimizer_to(optim, device):
     for param in optim.state.values():

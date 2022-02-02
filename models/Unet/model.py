@@ -42,6 +42,10 @@ class UnetModel(SegmentationModel):
 
         return torch.cat(pred_volumes).permute(1, 0, 2, 3).unsqueeze(0)
 
+    def decay_learning_rate(self, factor):
+        for g in self.optimizer.param_groups:
+            g['lr'] *= factor
+
     def get_state_dict(self):
         return {
             'net': self.net.state_dict(),

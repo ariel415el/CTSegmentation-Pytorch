@@ -2,20 +2,18 @@ import torch
 from torch import nn, optim
 from metrics import VolumeLoss
 from models.Unet.net import UNet
-from models.generic_model import SegmentationModel, optimizer_to
+from models.Unet.model import UnetModel
+from models.generic_model import optimizer_to
 
 
-class Unet2_5DModel(SegmentationModel):
+class Unet2_5DModel(UnetModel):
     def __init__(self, slice_size, n_classes, lr, bilinear, bias=False, eval_batchsize=1):
-        super(Unet2_5DModel, self).__init__(slice_size, n_classes)
         # assert slice_size % 2 == 1, "slice size  should be odd"
         assert slice_size == 3, "Currently only slice size=3 is suppported "
-        self.net = UNet(slice_size, n_classes, bilinear=bilinear, bias=bias)
-        self.optimizer = optim.Adam(self.net.parameters())
-        self.eval_batchsize = eval_batchsize
+        super(Unet2_5DModel, self).__init__(slice_size, n_classes, lr, bilinear, bias, eval_batchsize)
 
     def train_one_sample(self, ct_volume, gt_volume, mask_volume):
-        B, S, H, W = ct_volume.shape
+        # B, S, H, W = ct_volume.shape
         m = 1
         self.train()
         middle_gt = gt_volume[:, m:m+1]
@@ -48,23 +46,3 @@ class Unet2_5DModel(SegmentationModel):
                 pred_volumes.append(pred_volume)
 
         return torch.cat(pred_volumes).permute(1, 0, 2, 3).unsqueeze(0)
-
-    def get_state_dict(self):
-        return {
-            'net': self.net.state_dict(),
-            'optimizer': self.optimizer.state_dict(),
-        }
-
-    def load_state_dict(self, state_dict):
-        self.net.load_state_dict(state_dict['net'])
-        self.optimizer.load_state_dict(state_dict['optimizer'])
-
-    def train(self):
-        self.net.train()
-
-    def eval(self):
-        self.net.eval()
-
-    def to(self, device):
-        self.net.to(device=device)
-        optimizer_to(self.optimizer, device)

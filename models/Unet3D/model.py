@@ -9,7 +9,7 @@ from models.generic_model import SegmentationModel, optimizer_to
 
 class UNet3DModel(SegmentationModel):
     def __init__(self, n_classes, trilinear, slice_size=16, lr=0.0001):
-        super(UNet3DModel, self).__init__(1, n_classes)
+        # super(UNet3DModel, self).__init__(1, n_classes)
         self.net = UNet3D(1, n_classes, trilinear=trilinear)
         self.slice_size = slice_size
         self.optimizer = optim.Adam(self.net.parameters(), lr=lr)
@@ -57,6 +57,10 @@ class UNet3DModel(SegmentationModel):
     def load_state_dict(self, state_dict):
         self.net.load_state_dict(state_dict['net'])
         self.optimizer.load_state_dict(state_dict['optimizer'])
+
+    def decay_learning_rate(self, factor):
+        for g in self.optimizer.param_groups:
+            g['lr'] *= factor
 
     def train(self):
         self.net.train()

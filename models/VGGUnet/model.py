@@ -14,10 +14,12 @@ def load_vgg_weights(unet):
         unet.down3.maxpool_conv[1].double_conv[i].load_state_dict(vgg.features[21 + i].state_dict())
         unet.down4.maxpool_conv[1].double_conv[i].load_state_dict(vgg.features[28 + i].state_dict())
 
+
 class VGGUnet2_5DModel(Unet2_5DModel):
     def __init__(self, n_classes, lr, bilinear, eval_batchsize=1):
         super(VGGUnet2_5DModel, self).__init__(3, n_classes, lr, bilinear, bias=True, eval_batchsize=eval_batchsize)
         load_vgg_weights(self.net)
+
 
 class VGGUnetModel(UnetModel):
     def __init__(self, n_classes, lr, bilinear, eval_batchsize=1):
