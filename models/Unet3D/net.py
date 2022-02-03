@@ -84,17 +84,18 @@ class UNet3D(nn.Module):
         self.n_classes = n_classes
         self.trilinear = trilinear
 
-        self.inc = DoubleConv(n_channels, 64, bias)
-        self.down1 = Down(64, 128, bias)
-        self.down2 = Down(128, 256, bias)
-        self.down3 = Down(256, 512, bias)
+        p = 32
+        self.inc = DoubleConv(n_channels, p, bias)
+        self.down1 = Down(p, p*2, bias)
+        self.down2 = Down(p*2, p*4, bias)
+        self.down3 = Down(p*4, p*8, bias)
         factor = 2 if trilinear else 1
-        self.down4 = Down(512, 1024 // factor, bias)
-        self.up1 = Up(1024, 512 // factor, trilinear)
-        self.up2 = Up(512, 256 // factor, trilinear)
-        self.up3 = Up(256, 128 // factor, trilinear)
-        self.up4 = Up(128, 64, trilinear)
-        self.outc = OutConv(64, n_classes)
+        self.down4 = Down(p*8, p*16 // factor, bias)
+        self.up1 = Up(p*16, p*8 // factor, trilinear)
+        self.up2 = Up(p*8, p*4 // factor, trilinear)
+        self.up3 = Up(p*4, p*2 // factor, trilinear)
+        self.up4 = Up(p*2, p, trilinear)
+        self.outc = OutConv(p, n_classes)
 
     def forward(self, x):
         x1 = self.inc(x.unsqueeze(1))
@@ -110,147 +111,10 @@ class UNet3D(nn.Module):
         return logits
 
 
-from torch.nn import Module, Sequential
-from torch.nn import Conv3d, ConvTranspose3d, BatchNorm3d, MaxPool3d, AvgPool1d
-from torch.nn import ReLU, Sigmoid
-import torch
-
-class UNet3D_new(Module):
-    def __init__(self,feat_channels=[64, 64, 128, 256, 512], residual='conv'):
-        # residual: conv for residual input x through 1*1 conv across every layer for downsampling, None for removal of residuals
-
-        super(UNet3D_new, self).__init__()
-
-        # Encoder downsamplers
-        self.pool1 = MaxPool3d((1, 2, 2))
-        self.pool2 = MaxPool3d((1, 2, 2))
-        self.pool3 = MaxPool3d((1, 2, 2))
-        self.pool4 = MaxPool3d((1, 2, 2))
-
-        # Encoder convolutions
-        self.conv_blk1 = Conv3D_Block(1, feat_channels[0], residual=residual)
-        self.conv_blk2 = Conv3D_Block(feat_channels[0], feat_channels[1], residual=residual)
-        self.conv_blk3 = Conv3D_Block(feat_channels[1], feat_channels[2], residual=residual)
-        self.conv_blk4 = Conv3D_Block(feat_channels[2], feat_channels[3], residual=residual)
-        self.conv_blk5 = Conv3D_Block(feat_channels[3], feat_channels[4], residual=residual)
-
-        # Decoder convolutions
-        self.dec_conv_blk4 = Conv3D_Block(2 * feat_channels[3], feat_channels[3], residual=residual)
-        self.dec_conv_blk3 = Conv3D_Block(2 * feat_channels[2], feat_channels[2], residual=residual)
-        self.dec_conv_blk2 = Conv3D_Block(2 * feat_channels[1], feat_channels[1], residual=residual)
-        self.dec_conv_blk1 = Conv3D_Block(2 * feat_channels[0], feat_channels[0], residual=residual)
-
-        # Decoder upsamplers
-        self.deconv_blk4 = Deconv3D_Block(feat_channels[4], feat_channels[3])
-        self.deconv_blk3 = Deconv3D_Block(feat_channels[3], feat_channels[2])
-        self.deconv_blk2 = Deconv3D_Block(feat_channels[2], feat_channels[1])
-        self.deconv_blk1 = Deconv3D_Block(feat_channels[1], feat_channels[0])
-
-        # Final 1*1 Conv Segmentation map
-        self.one_conv = Conv3d(feat_channels[0], 2, kernel_size=1, stride=1, padding=0, bias=True)
-
-        # Activation function
-        self.sigmoid = Sigmoid()
-
-    def forward(self, x):
-        # Encoder part
-
-        x1 = self.conv_blk1(x.unsqueeze(1))
-
-        x_low1 = self.pool1(x1)
-        x2 = self.conv_blk2(x_low1)
-
-        x_low2 = self.pool2(x2)
-        x3 = self.conv_blk3(x_low2)
-
-        x_low3 = self.pool3(x3)
-        x4 = self.conv_blk4(x_low3)
-
-        x_low4 = self.pool4(x4)
-        base = self.conv_blk5(x_low4)
-
-        # Decoder part
-
-        d4 = torch.cat([self.deconv_blk4(base), x4], dim=1)
-        d_high4 = self.dec_conv_blk4(d4)
-
-        d3 = torch.cat([self.deconv_blk3(d_high4), x3], dim=1)
-        d_high3 = self.dec_conv_blk3(d3)
-
-        d2 = torch.cat([self.deconv_blk2(d_high3), x2], dim=1)
-        d_high2 = self.dec_conv_blk2(d2)
-
-        d1 = torch.cat([self.deconv_blk1(d_high2), x1], dim=1)
-        d_high1 = self.dec_conv_blk1(d1)
-
-        seg = self.sigmoid(self.one_conv(d_high1))
-
-        return seg
-
-
-class Conv3D_Block(Module):
-
-    def __init__(self, inp_feat, out_feat, kernel=3, stride=1, padding=1, residual=None):
-
-        super(Conv3D_Block, self).__init__()
-
-        self.conv1 = Sequential(
-            Conv3d(inp_feat, out_feat, kernel_size=kernel,
-                   stride=stride, padding=padding, bias=True),
-            BatchNorm3d(out_feat),
-            ReLU())
-
-        self.conv2 = Sequential(
-            Conv3d(out_feat, out_feat, kernel_size=kernel,
-                   stride=stride, padding=padding, bias=True),
-            BatchNorm3d(out_feat),
-            ReLU())
-
-        self.residual = residual
-
-        if self.residual is not None:
-            self.residual_upsampler = Conv3d(inp_feat, out_feat, kernel_size=1, bias=False)
-
-    def forward(self, x):
-
-        res = x
-
-        if not self.residual:
-            return self.conv2(self.conv1(x))
-        else:
-            return self.conv2(self.conv1(x)) + self.residual_upsampler(res)
-
-
-class Deconv3D_Block(Module):
-
-    def __init__(self, inp_feat, out_feat, kernel=4, stride=2, padding=1):
-        super(Deconv3D_Block, self).__init__()
-
-        self.deconv = Sequential(
-            ConvTranspose3d(inp_feat, out_feat, kernel_size=(1, kernel, kernel),
-                            stride=(1, stride, stride), padding=(0, padding, padding), output_padding=0, bias=True),
-            ReLU())
-
-    def forward(self, x):
-        return self.deconv(x)
-
-
-class ChannelPool3d(AvgPool1d):
-
-    def __init__(self, kernel_size, stride, padding):
-        super(ChannelPool3d, self).__init__(kernel_size, stride, padding)
-        self.pool_1d = AvgPool1d(self.kernel_size, self.stride, self.padding, self.ceil_mode)
-
-    def forward(self, inp):
-        n, c, d, w, h = inp.size()
-        inp = inp.view(n, c, d * w * h).permute(0, 2, 1)
-        pooled = self.pool_1d(inp)
-        c = int(c / self.kernel_size[0])
-        return inp.view(n, c, d, w, h)
-
-
 if __name__ == '__main__':
     net = UNet3D(1,2)
+    nparams = sum(p.numel() for p in net.parameters() if p.requires_grad)
+    print(nparams)
     net.eval()
-    x1 = torch.zeros((2,16,32,32))
+    x1 = torch.zeros((3,32,128,128))
     print(net(x1).shape)

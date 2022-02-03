@@ -11,6 +11,8 @@ class ExperimentConfigs:
     lr: float = 0.00001
     learnable_upsamples: bool = False
     slice_size: int = 1
+    dice_loss_weight = 1
+    wce_loss_weight = 1
 
     # data configs
     data_path = 'datasets/LiTS2017_(MS-(3, 15, 15)_MM-2_Crop-CL-1_margins-(1, 1, 1)_OB-0.5_MD-11)'
@@ -23,7 +25,7 @@ class ExperimentConfigs:
     Z_normalization: bool = False    # normal standardization of volume intencities
     force_non_empty: bool = False    # For volumes with non-bg voxels. train only on non-empty chunks
     batch_size: int = 32
-    num_workers: int = 0
+    num_workers: int = 4
 
     # train configs
     train_tag: str = ""
@@ -40,5 +42,7 @@ class ExperimentConfigs:
         f"{'_MaskBg' if self.ignore_background else ''}" \
         f"{'_HistEq' if self.hist_equalization else ''}" \
         f"{'_ZNorm' if self.Z_normalization else ''}" \
+        f"{'_FNE' if self.force_non_empty else ''}" \
+        f"Loss({self.dice_loss_weight:.1f}Dice+{self.wce_loss_weight:.1f}WCE" \
         f"{'_' + self.train_tag if self.train_tag else ''}" \
         f"_V-{self.val_set}"

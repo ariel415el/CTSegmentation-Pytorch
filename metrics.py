@@ -53,6 +53,7 @@ def compute_IOU(pred_mat, gt_map, mask):
 
     return results
 
+
 def per_class_score(score_func, pred_volume, segmentation_volume, mask_volume=None):
     """
     :param pred_volume: float array of shape (b, n_class, slices, H, W) contating class logits
@@ -72,6 +73,7 @@ def per_class_score(score_func, pred_volume, segmentation_volume, mask_volume=No
         scores.append(score_func(pred_volume[:, c], gt_1hot_volume[:, c],  mask_volume[:, 0]))
 
     return torch.stack(scores).mean(1)
+
 
 def compute_segmentation_loss(score_func, pred_volume, segmentation_volume, mask_volume=None):
     """
@@ -108,33 +110,31 @@ def compute_segmentation_score(score_func, pred_volume, segmentation_volume, mas
     else:
         return scores.mean()
 
-# def well_classified_voxel_perc(pred_volume, segmentation_volume):
-#     """
-#     :param preds: float array of shape (1, n_class, slices, H, W) contating class logits
-#     :param segmentation_volume: uint8 array of shape (1, 1, slices, H, W) containing segmentation labels
-#     """
-#     assert (pred_volume.shape[0] == 1)
-#
-#     n_class = pred_volume.shape[1]
-#     gt_1hot_volume = F.one_hot(segmentation_volume[:, 0], n_class).permute(0, 4, 1, 2, 3).float()
-#
-#     intersection = torch.all(gt_1hot_volume == pred_volume, dim=1).sum()
-#     union = pred_volume.shape[-3:].numel()
-#
-#     return intersection / union
 
+class VolumeLoss:
+    def __init__(self, dice_weight=1, ce_weight=1):
+        self.dice_weight = dice_weight
+        self.ce_weight = ce_weight
+        self.dice_loss = TverskyScore(0.5, 0.5)
 
+    def __str__(self):
+        return f"Vloss({self.dice_weight:.1f}Dice+{self.ce_weight:.1f}WCE)"
 
-def VolumeLoss(preds, gts, mask):
-    """
-    :param preds: float array of shape (b, n_class, slices, H, W) contating class logits
-    :param gts: uint8 array of shape (b, slices, H, W) containing segmentation labels
-    :param mask: bool array of shape (b, slices, H, W) containing segmentation labels
-    """
-    dice_loss = compute_segmentation_loss(TverskyScore(0.5, 0.5), preds, gts.unsqueeze(1), mask.unsqueeze(1))
-    class_weights = torch.tensor([1,(gts == 0).sum() / (gts == 1).sum()]).to(preds.device)
-    ce_loss = torch.nn.CrossEntropyLoss(weight=class_weights)(preds, gts)
-    return dice_loss + ce_loss
+    def __call__(self, preds, gts, mask):
+        """
+        :param preds: float array of shape (b, n_class, slices, H, W) contating class logits
+        :param gts: uint8 array of shape (b, slices, H, W) containing segmentation labels
+        :param mask: bool array of shape (b, slices, H, W) containing segmentation labels
+        """
+        loss = 0
+        if self.dice_weight > 0:
+            dice_loss = compute_segmentation_loss(self.dice_loss, preds, gts.unsqueeze(1), mask.unsqueeze(1))
+            loss += self.dice_weight * dice_loss
+        if self.ce_weight > 0:
+            class_weights = torch.tensor([1,(gts == 0).sum() / (gts == 1).sum()]).to(preds.device)
+            ce_loss = torch.nn.CrossEntropyLoss(weight=class_weights)(preds, gts)
+            loss = self.ce_weight * ce_loss
+        return loss
 
 
 if __name__ == '__main__':

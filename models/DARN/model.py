@@ -1,25 +1,27 @@
 import torch
 
 from models.DARN.net import DARN
-from metrics import VolumeLoss
 from torch import optim
 
 from models.generic_model import SegmentationModel, optimizer_to
 
 
 class DARNModel(SegmentationModel):
-    def __init__(self, n_channels, n_classes, slice_size, lr):
-        super(DARNModel, self).__init__(n_channels, n_classes)
-        self.net = DARN(n_channels, n_classes)
+    def __init__(self, n_classes, trilinear, slice_size, lr):
+        super(DARNModel, self).__init__(1, n_classes)
+        self.net = DARN(n_classes, trilinear, bias=False)
         self.slice_size = slice_size
         self.optimizer = optim.Adam(self.net.parameters(), lr=lr)
 
-    def train_one_sample(self, ct_volume, gt_volume, mask_volume):
+    def train_one_sample(self, ct_volume, gt_volume, mask_volume, volume_crieteria):
         self.net.train()
         pred, intermediate_maps = self.net(ct_volume)
 
-        # deep_loss = multipleVolumeSLoss(intermediate_maps, gt_volume, mask_volume)
-        loss = VolumeLoss(pred, gt_volume, mask_volume)
+        loss = 0
+        for pred in intermediate_maps:
+            loss += volume_crieteria(pred, gt_volume, mask_volume)
+
+        loss += volume_crieteria(pred, gt_volume, mask_volume)
 
         self.optimizer.zero_grad()
         loss.backward()

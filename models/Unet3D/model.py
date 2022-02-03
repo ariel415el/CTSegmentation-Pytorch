@@ -1,7 +1,6 @@
 import torch
 
-from metrics import VolumeLoss
-from models.Unet3D.net import UNet3D, UNet3D_new
+from models.Unet3D.net import UNet3D
 from torch import optim
 
 from models.generic_model import SegmentationModel, optimizer_to
@@ -9,16 +8,16 @@ from models.generic_model import SegmentationModel, optimizer_to
 
 class UNet3DModel(SegmentationModel):
     def __init__(self, n_classes, trilinear, slice_size=16, lr=0.0001):
-        # super(UNet3DModel, self).__init__(1, n_classes)
+        super(UNet3DModel, self).__init__(1, n_classes)
         self.net = UNet3D(1, n_classes, trilinear=trilinear)
         self.slice_size = slice_size
         self.optimizer = optim.Adam(self.net.parameters(), lr=lr)
 
-    def train_one_sample(self, ct_volume, gt_volume, mask_volume):
+    def train_one_sample(self, ct_volume, gt_volume, mask_volume, volume_crieteria):
         self.net.train()
         pred = self.net(ct_volume)
 
-        loss = VolumeLoss(pred, gt_volume, mask_volume)
+        loss = volume_crieteria(pred, gt_volume, mask_volume)
 
         self.optimizer.zero_grad()
         loss.backward()

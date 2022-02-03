@@ -8,7 +8,7 @@ from datasets.visualize_data import write_volume_slices
 from metrics import compute_segmentation_score, TverskyScore, compute_IOU, VolumeLoss
 
 
-def evaluate(model, dataloader, device, outputs_dir=None):
+def evaluate(model, dataloader, device, volume_crieteria, outputs_dir=None):
     model.eval()
     with torch.no_grad():
         total_slices_per_sec = 0
@@ -29,7 +29,7 @@ def evaluate(model, dataloader, device, outputs_dir=None):
 
             dice_per_class = compute_segmentation_score(TverskyScore(0.5, 0.5), pred_volume, gt_volume.unsqueeze(1), mask_volume.unsqueeze(1), return_per_class=True)
             iou_per_calss = compute_segmentation_score(compute_IOU, pred_volume, gt_volume.unsqueeze(1), mask_volume.unsqueeze(1), return_per_class=True)
-            loss = VolumeLoss(pred_volume, gt_volume, mask_volume)
+            loss = volume_crieteria(pred_volume, gt_volume, mask_volume)
             dice_scores.append(dice_per_class)
             iou_scores.append(iou_per_calss)
             loss_values.append(loss.item())

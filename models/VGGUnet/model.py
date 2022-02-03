@@ -1,5 +1,4 @@
 import torch
-from metrics import VolumeLoss
 from models.Unet.model import UnetModel
 from models.Unet2_5D.model import Unet2_5DModel
 from torchvision.models import vgg13_bn
@@ -26,11 +25,11 @@ class VGGUnetModel(UnetModel):
         super(VGGUnetModel, self).__init__(3, n_classes, lr, bilinear, eval_batchsize=eval_batchsize, bias=True)
         load_vgg_weights(self.net)
 
-    def train_one_sample(self, ct_volume, gt_volume, mask_volume):
+    def train_one_sample(self, ct_volume, gt_volume, mask_volume, volume_crieteria):
         self.train()
         pred = self.net(ct_volume.repeat(1, 3, 1, 1))
 
-        loss = VolumeLoss(pred.unsqueeze(2), gt_volume, mask_volume)
+        loss = volume_crieteria(pred.unsqueeze(2), gt_volume, mask_volume)
 
         self.optimizer.zero_grad()
         loss.backward()

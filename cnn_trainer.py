@@ -10,6 +10,7 @@ from tqdm import tqdm
 
 from evaluate import evaluate
 from config import *
+from metrics import VolumeLoss
 
 
 def iterate_dataloader(dataloader):
@@ -29,6 +30,7 @@ class CNNTrainer:
         self.data_means = defaultdict(list)
         self.smooth_score_size = smooth_score_size
         self.train_time = 0
+        self.volume_crieteria = VolumeLoss(self.config.dice_loss_weight, self.config.wce_loss_weight)
 
     def train_model(self, model, dataloaders):
         model.to(self.config.device)
@@ -41,7 +43,7 @@ class CNNTrainer:
             gt_volume = sample['gt'].to(device=self.config.device, dtype=torch.long)
             mask_volume = sample['mask'].to(device=self.config.device, dtype=torch.bool)
 
-            loss = model.train_one_sample(ct_volume, gt_volume, mask_volume)
+            loss = model.train_one_sample(ct_volume, gt_volume, mask_volume, self.volume_crieteria)
             self.register_data({'train-loss': loss})
 
             self.pbar.update(ct_volume.shape[0] * ct_volume.shape[-3])
@@ -49,7 +51,7 @@ class CNNTrainer:
 
             # Evaluation
             if self.step % self.config.eval_freq == 0:
-                validation_report = evaluate(model, val_loader, self.config.device)
+                validation_report = evaluate(model, val_loader, self.config.device, self.volume_crieteria)
                 validation_report['val-loss'] = validation_report.pop('Loss')
                 self.register_data(validation_report)
                 self.plot()
@@ -97,7 +99,7 @@ class CNNTrainer:
         return dict(step=self.step, data=self.data, data_means=self.data_means, train_time=self.train_time)
 
     def save_checkpoint(self, model, name):
-        torch.save(dict(trainer=self.get_state(), model=model.get_state_dict()), f'{self.train_dir}/{name}.pth')
+        torch.save(dict(trainer=self.get_state(), model=model.get_state_dict(), config=self.config), f'{self.train_dir}/{name}.pth')
 
     def load_state(self, trainer_state):
         logging.info("loaded trainer from file")

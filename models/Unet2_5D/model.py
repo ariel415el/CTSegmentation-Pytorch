@@ -1,6 +1,5 @@
 import torch
 from torch import nn, optim
-from metrics import VolumeLoss
 from models.Unet.net import UNet
 from models.Unet.model import UnetModel
 from models.generic_model import optimizer_to
@@ -12,7 +11,7 @@ class Unet2_5DModel(UnetModel):
         assert slice_size == 3, "Currently only slice size=3 is suppported "
         super(Unet2_5DModel, self).__init__(slice_size, n_classes, lr, bilinear, bias, eval_batchsize)
 
-    def train_one_sample(self, ct_volume, gt_volume, mask_volume):
+    def train_one_sample(self, ct_volume, gt_volume, mask_volume, volume_crieteria):
         # B, S, H, W = ct_volume.shape
         m = 1
         self.train()
@@ -20,7 +19,7 @@ class Unet2_5DModel(UnetModel):
         middle_mask = mask_volume[:, m:m+1]
         middle_pred = self.net(ct_volume)
 
-        loss = VolumeLoss(middle_pred.unsqueeze(2), middle_gt, middle_mask)
+        loss = volume_crieteria(middle_pred.unsqueeze(2), middle_gt, middle_mask)
 
         self.optimizer.zero_grad()
         loss.backward()

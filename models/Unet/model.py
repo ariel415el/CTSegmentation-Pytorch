@@ -1,7 +1,6 @@
 import torch
-from torch import nn, optim
+from torch import optim
 from models.Unet.net import UNet
-from metrics import VolumeLoss
 from models.generic_model import SegmentationModel, optimizer_to
 
 
@@ -12,11 +11,11 @@ class UnetModel(SegmentationModel):
         self.optimizer = optim.Adam(self.net.parameters(), lr=lr)
         self.eval_batchsize = eval_batchsize
 
-    def train_one_sample(self, ct_volume, gt_volume, mask_volume):
+    def train_one_sample(self, ct_volume, gt_volume, mask_volume, volume_crieteria):
         self.net.train()
         pred = self.net(ct_volume)
 
-        loss = VolumeLoss(pred.unsqueeze(2), gt_volume, mask_volume)
+        loss = volume_crieteria(pred.unsqueeze(2), gt_volume, mask_volume)
 
         self.optimizer.zero_grad()
         loss.backward()

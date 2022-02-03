@@ -72,7 +72,10 @@ class Up(nn.Module):
 
 
 class SemRef(nn.Module):
-    """Downscaling with maxpool then double conv"""
+    """
+        Uses lower and higher level feature maps to create a channel attention for the low level maps
+        returns a tensor of shape lower_level_map
+    """
     def __init__(self, low_in_channels, high_in_channels, bias=False):
         super().__init__()
         self.conv_IN_LR = nn.Sequential(
@@ -81,20 +84,23 @@ class SemRef(nn.Module):
             nn.LeakyReLU(inplace=True),
         )
         self.conv_1x1 = nn.Sequential(
-            nn.Conv3d(low_in_channels, nn.Conv3d(low_in_channels + high_in_channels, low_in_channels, kernel_size=1, padding=0, bias=bias)),
+            nn.Conv3d(low_in_channels + high_in_channels, low_in_channels, kernel_size=1, padding=0, bias=bias),
             nn.Softmax()
         )
 
     def forward(self, lower_level_map, higher_level_map):
         all_maps = torch.cat([lower_level_map, higher_level_map], dim=1)
-        attention_weights = torch.mean(all_maps, dim=[-2, -1]) # global_average_pooling
+        attention_weights = torch.mean(all_maps, dim=[-2, -1], keepdim=True) # global_average_pooling
         attention_weights = self.conv_1x1(attention_weights)
         new_maps = lower_level_map + self.conv_IN_LR(lower_level_map) * attention_weights
         return new_maps
 
 
 class SpaRef(nn.Module):
-    """Downscaling with maxpool then double conv"""
+    """
+    Uses lower and higher level feature maps to create a spatial attention for the high level maps
+        returns a tensor of shape higher_level_map
+    """
     def __init__(self, low_in_channels, high_in_channels, bias=False):
         super().__init__()
         self.conv_1 = nn.Sequential(
@@ -103,7 +109,7 @@ class SpaRef(nn.Module):
             nn.LeakyReLU(inplace=True),
         )
         self.conv_2 = nn.Sequential(
-            nn.Conv3d(low_in_channels, nn.Conv3d(high_in_channels, 1, kernel_size=3, padding=1, bias=bias)),
+            nn.Conv3d(high_in_channels, 1, kernel_size=3, padding=1, bias=bias),
             nn.Softmax()
         )
         self.conv_3 = nn.Sequential(
@@ -115,81 +121,103 @@ class SpaRef(nn.Module):
     def forward(self, lower_level_map, higher_level_map):
         all_maps = torch.cat([lower_level_map, higher_level_map], dim=1)
         attention_map = self.conv_2(self.conv_1(all_maps))
-        weighted_higer_map = higher_level_map + attention_map * higher_level_map
-        new_maps = self.conv_3(weighted_higer_map)
+        weighted_higher_map = higher_level_map + attention_map * higher_level_map
+        new_maps = self.conv_3(weighted_higher_map)
         return new_maps
 
 
 class DARN(nn.Module):
-    def __init__(self, n_channels, n_classes, trilinear=True, bias=False):
+    def __init__(self, n_classes, trilinear=True, bias=False):
         super(DARN, self).__init__()
-        self.n_channels = n_channels
         self.n_classes = n_classes
         self.trilinear = trilinear
-
-        self.inc = DoubleConv(n_channels, 64, bias)
-        self.down1 = Down(64, 128, bias)
-        self.down2 = Down(128, 256, bias)
-        self.down3 = Down(256, 512, bias)
+        p = 32
+        self.inc = DoubleConv(1, p, bias)
+        self.down1 = Down(p, p*2, bias)
+        self.down2 = Down(p*2, p*4, bias)
+        self.down3 = Down(p*4, p*8, bias)
         factor = 2 if trilinear else 1
-        self.down4 = Down(512, 1024 // factor, bias)
-        self.up1 = Up(1024, 512 // factor, trilinear)
-        self.up2 = Up(512, 256 // factor, trilinear)
-        self.up3 = Up(256, 128 // factor, trilinear)
-        self.up4 = Up(128, 64, trilinear)
+        self.down4 = Down(p*8, p*16 // factor, bias)
+        self.up1 = Up(p*16, p*8 // factor, trilinear)
+        self.up2 = Up(p*8, p*4 // factor, trilinear)
+        self.up3 = Up(p*4, p*2 // factor, trilinear)
+        self.up4 = Up(p*2, p, trilinear)
 
         self.upscale_2 = nn.Upsample(scale_factor=2, mode='trilinear', align_corners=True)
         self.upscale_4 = nn.Upsample(scale_factor=4, mode='trilinear', align_corners=True)
         self.upscale_8 = nn.Upsample(scale_factor=8, mode='trilinear', align_corners=True)
-        self.upscale_16 = nn.Upsample(scale_factor=8, mode='trilinear', align_corners=True)
+                                             # nn.Conv3d(p*8 // factor, n_classes, kernel_size=1, padding=0, bias=bias, stride=1)
 
-        # self.sem_ref0 = SemRef(64, 128)
-        # self.sem_ref1 = SemRef(128, 256)
-        # self.sem_ref2 = SemRef(256, 512)
-        #
-        # self.spa_ref1 = SpaRef(64, 128)
-        # self.spa_ref2 = SpaRef(128, 256)
-        # self.spa_ref3 = SpaRef(256, 512)
+        self.sem_ref0 = SemRef(p, p)
+        self.sem_ref1 = SemRef(p, p*2)
+        self.sem_ref2 = SemRef(p*2, p*4)
 
-        self.out_conv = nn.Conv3d(64 + 64 + 128 + 256, n_classes, kernel_size=1, padding=0, bias=bias, stride=1)
+        self.spa_ref1 = SpaRef(p, p)
+        self.spa_ref2 = SpaRef(p, p*2)
+        self.spa_ref3 = SpaRef(p*2, p*4)
+
+        self.final_out_conv = nn.Conv3d(p + p*2 + p*4, n_classes, kernel_size=1, padding=0, bias=bias, stride=1)
+
+        self.maps1_l3_out = nn.Conv3d(p*4, n_classes, kernel_size=1, padding=0, bias=bias, stride=1)
+        self.maps1_l2_out = nn.Conv3d(p*2, n_classes, kernel_size=1, padding=0, bias=bias, stride=1)
+        self.maps1_l1_out = nn.Conv3d(p, n_classes, kernel_size=1, padding=0, bias=bias, stride=1)
+        self.maps1_l0_out = nn.Conv3d(p, n_classes, kernel_size=1, padding=0, bias=bias, stride=1)
+
+        self.maps2_l3_out = nn.Conv3d(p*4, n_classes, kernel_size=1, padding=0, bias=bias, stride=1)
+        self.maps2_l2_out = nn.Conv3d(p*2, n_classes, kernel_size=1, padding=0, bias=bias, stride=1)
+        self.maps2_l1_out = nn.Conv3d(p, n_classes, kernel_size=1, padding=0, bias=bias, stride=1)
+        self.maps2_l0_out = nn.Conv3d(p, n_classes, kernel_size=1, padding=0, bias=bias, stride=1)
+
+        self.maps3_l3_out = nn.Conv3d(p*4, n_classes, kernel_size=1, padding=0, bias=bias, stride=1)
+        self.maps3_l2_out = nn.Conv3d(p*2, n_classes, kernel_size=1, padding=0, bias=bias, stride=1)
+        self.maps3_l1_out = nn.Conv3d(p, n_classes, kernel_size=1, padding=0, bias=bias, stride=1)
+        self.maps3_l0_out = nn.Conv3d(p, n_classes, kernel_size=1, padding=0, bias=bias, stride=1)
 
     def forward(self, x):
-        # encoder
-        x_l0 = self.inc(x.unsqueeze(1))
-        x_l1 = self.down1(x_l0)
-        x_l2 = self.down2(x_l1)
-        x_l3 = self.down3(x_l2)
-        y_l4 = self.down4(x_l3)
+        x = x.unsqueeze(1)                # (b, 1, s, h, w)
+        x_l0 = self.inc(x)                # (b, p, s, h, w)
+        x_l1 = self.down1(x_l0)           # (b, p*2, s//2, h//2, w//2)
+        x_l2 = self.down2(x_l1)           # (b, p*4, s//4, h//4, w//4)
+        x_l3 = self.down3(x_l2)           # (b, p*8, s//8, h//8, w//8)
+        y_l4 = self.down4(x_l3)           # (b, p*8, s//16, h//16, w//16)
 
         # decoder
-        y_l3 = self.up1(y_l4, x_l3)
-        y_l2 = self.up2(y_l3, x_l2)
-        y_l1 = self.up3(y_l2, x_l1)
-        y_l0 = self.up4(y_l1, x_l0)
+        y_l3 = self.up1(y_l4, x_l3)       # (b, p*4, s//8, h//8, w//8)
+        y_l2 = self.up2(y_l3, x_l2)       # (b, p*2, s//4, h//4, w//4)
+        y_l1 = self.up3(y_l2, x_l1)       # (b, p, s//2, h//2, w//2)
+        y_l0 = self.up4(y_l1, x_l0)       # (b, p, s, h, w)
 
-        maps1_l3 = self.upscale_8(y_l3)
-        maps1_l2 = self.upscale_4(y_l2)
-        maps1_l1 = self.upscale_2(y_l1)
-        maps1_l0 = y_l0
-        #
-        # maps2_l3 = maps1_l3
-        # maps2_l2 = self.sem_ref2(maps1_l2, maps1_l3)
-        # maps2_l1 = self.sem_ref1(maps1_l1, maps1_l2)
-        # maps2_l0 = self.sem_ref0(maps1_l0, maps1_l1)
-        #
-        # maps3_l3 = self.spa_ref3(maps2_l2, maps2_l3)
-        # maps3_l2 = self.spa_ref3(maps2_l2, maps2_l1)
-        # maps3_l1 = self.spa_ref3(maps2_l0, maps2_l1)
-        # maps3_l0 = maps2_l0
+        maps1_l3 = self.upscale_8(y_l3)   # (b, p*4, s, h, w)
+        maps1_l2 = self.upscale_4(y_l2)   # (b, p*2, s, h, w)
+        maps1_l1 = self.upscale_2(y_l1)   # (b, p, s, h, w)
+        maps1_l0 = y_l0                   # (b, p, s, h, w)
 
-        all_maps = torch.cat([maps1_l3, maps1_l2, maps1_l1, maps1_l0], dim=1)
-        final_pred = self.out_conv(all_maps)
+        maps2_l3 = maps1_l3                           # (b, p*4, s, h, w)
+        maps2_l2 = self.sem_ref2(maps1_l2, maps1_l3)  # (b, p*2, s, h, w)
+        maps2_l1 = self.sem_ref1(maps1_l1, maps1_l2)  # (b, p, s, h, w)
+        maps2_l0 = self.sem_ref0(maps1_l0, maps1_l1)  # (b, p, s, h, w)
 
-        return final_pred, [maps1_l3, maps1_l2, maps1_l1, maps1_l0]
+        maps3_l3 = self.spa_ref3(maps2_l2, maps2_l3)  # (b, p*4, s, h, w)
+        maps3_l2 = self.spa_ref2(maps2_l1, maps2_l2)  # (b, p*2, s, h, w)
+        maps3_l1 = self.spa_ref1(maps2_l0, maps2_l1)  # (b, p, s, h, w)
+        maps3_l0 = maps2_l0                           # (b, p, s, h, w)
+
+        all_maps = torch.cat([maps3_l3, maps3_l2, maps3_l1], dim=1)
+        final_pred = self.final_out_conv(all_maps)
+
+        out_convs = [
+            self.maps1_l0_out(maps1_l0), self.maps1_l1_out(maps1_l1), self.maps1_l2_out(maps1_l2), self.maps1_l3_out(maps1_l3),
+            self.maps2_l0_out(maps1_l0), self.maps3_l1_out(maps2_l1), self.maps2_l2_out(maps2_l2), self.maps3_l3_out(maps2_l3),
+            self.maps3_l0_out(maps1_l0), self.maps2_l1_out(maps3_l1), self.maps3_l2_out(maps3_l2), self.maps2_l3_out(maps3_l3)
+        ]
+
+        return final_pred, out_convs
 
 
 if __name__ == '__main__':
-    net = UNet3D(1,2)
+    net = DARN(2)
+    nparams = sum(p.numel() for p in net.parameters() if p.requires_grad)
+    print(nparams)
     net.eval()
-    x1 = torch.zeros((2,16,32,32))
-    print(net(x1).shape)
+    x1 = torch.zeros((3,32,128,128))
+    print(net(x1)[0].shape)
