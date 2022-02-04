@@ -6,10 +6,15 @@ from models.generic_model import optimizer_to
 
 
 class Unet2_5DModel(UnetModel):
-    def __init__(self, slice_size, n_classes, lr, bilinear, bias=False, eval_batchsize=1):
+    def __init__(self, slice_size, n_classes, p, lr, bilinear_upsample, bias=False, eval_batchsize=1):
         # assert slice_size % 2 == 1, "slice size  should be odd"
         assert slice_size == 3, "Currently only slice size=3 is suppported "
-        super(Unet2_5DModel, self).__init__(slice_size, n_classes, lr, bilinear, bias, eval_batchsize)
+        super(Unet2_5DModel, self).__init__(slice_size, n_classes, p, lr, bilinear_upsample, bias, eval_batchsize)
+
+        self.name = f"UNet2_5D(p={p}" + (',BUS' if bilinear_upsample else '') + (',bias' if bias else '') + ")"
+
+    def __str__(self):
+        return self.name
 
     def train_one_sample(self, ct_volume, gt_volume, mask_volume, volume_crieteria):
         # B, S, H, W = ct_volume.shape

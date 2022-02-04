@@ -15,15 +15,25 @@ def load_vgg_weights(unet):
 
 
 class VGGUnet2_5DModel(Unet2_5DModel):
-    def __init__(self, n_classes, lr, bilinear, eval_batchsize=1):
-        super(VGGUnet2_5DModel, self).__init__(3, n_classes, lr, bilinear, bias=True, eval_batchsize=eval_batchsize)
+    def __init__(self, n_classes, lr, bilinear_upsample, eval_batchsize=1):
+        super(VGGUnet2_5DModel, self).__init__(3, n_classes, p=64, lr=lr, bilinear_upsample=bilinear_upsample, bias=True, eval_batchsize=eval_batchsize)
         load_vgg_weights(self.net)
+
+        self.name = f"VGGUNet2_5D(" + ('BUS' if bilinear_upsample else '') + ")"
+
+    def __str__(self):
+        return self.name
 
 
 class VGGUnetModel(UnetModel):
-    def __init__(self, n_classes, lr, bilinear, eval_batchsize=1):
-        super(VGGUnetModel, self).__init__(3, n_classes, lr, bilinear, eval_batchsize=eval_batchsize, bias=True)
+    def __init__(self, n_classes, lr, bilinear_upsample, eval_batchsize=1):
+        super(VGGUnetModel, self).__init__(3, n_classes, p=64, lr=lr, bilinear_upsample=bilinear_upsample, bias=True, eval_batchsize=eval_batchsize)
         load_vgg_weights(self.net)
+
+        self.name = f"VGGUNet2_5D(" + ('BUS' if bilinear_upsample else '') + ")"
+
+    def __str__(self):
+        return self.name
 
     def train_one_sample(self, ct_volume, gt_volume, mask_volume, volume_crieteria):
         self.train()

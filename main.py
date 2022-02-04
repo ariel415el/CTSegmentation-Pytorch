@@ -22,29 +22,32 @@ def get_model(config):
     if config.model_name == 'UNet':
         model = models.UnetModel(n_channels=1,
                                  n_classes=config.n_classes,
-                                 lr=config.lr,
-                                 bilinear=not config.learnable_upsamples,
-                                 eval_batchsize=config.batch_size)
+                                 p=64,
+                                 lr=config.starting_lr,
+                                 bilinear_upsample=not config.learnable_upsamples,
+                                 eval_batchsize=32)
     elif config.model_name == 'VGGUNet':
         model = models.VGGUnetModel(n_classes=config.n_classes,
-                                    lr=config.lr,
-                                    bilinear=not config.learnable_upsamples,
-                                    eval_batchsize=config.batch_size)
+                                    lr=config.starting_lr,
+                                    bilinear_upsample=not config.learnable_upsamples,
+                                    eval_batchsize=32)
     elif config.model_name == 'VGGUNet2_5D':
         model = models.VGGUnet2_5DModel(n_classes=config.n_classes,
-                                        lr=config.lr,
-                                        bilinear=not config.learnable_upsamples,
-                                        eval_batchsize=config.batch_size)
+                                        lr=config.starting_lr,
+                                        bilinear_upsample=not config.learnable_upsamples,
+                                        eval_batchsize=32)
     elif config.model_name == 'UNet3D':
         model = models.UNet3DModel(n_classes=config.n_classes,
-                                   trilinear=not config.learnable_upsamples,
+                                   trilinear_upsample=not config.learnable_upsamples,
                                    slice_size=config.slice_size,
-                                   lr=config.lr)
+                                   p=32,
+                                   lr=config.starting_lr)
 
     elif config.model_name == 'DARN':
         model = models.DARNModel(n_classes=config.n_classes,
-                                   trilinear=not config.learnable_upsamples,
+                                   trilinear_upsample=not config.learnable_upsamples,
                                    slice_size=config.slice_size,
+                                   p=8,
                                    lr=config.lr)
     else:
         raise Exception("No such train method")
@@ -52,11 +55,12 @@ def get_model(config):
     return model
 
 
-def train(config, model_dir):
-    model = get_model(config)
-    dataloaders = get_dataloaders(config)
+def train(exp_config, outputs_dir):
+    model = get_model(exp_config.get_model_config())
+    dataloaders = get_dataloaders(exp_config.get_data_config())
+    trainer = CNNTrainer(exp_config.get_train_configs())
 
-    trainer = CNNTrainer(config, model_dir, smooth_score_size=10)
+    model_dir = f"{outputs_dir}/{model}_{exp_config}"
 
     # Try to load checkpoint
     if os.path.exists(os.path.join(model_dir, "latest.pth")):
@@ -65,14 +69,16 @@ def train(config, model_dir):
         trainer.load_state(ckpt['trainer'])
         model.load_state_dict(ckpt['model'])
 
-    trainer.train_model(model, dataloaders)
-
+    trainer.train_model(model, dataloaders, model_dir)
     train_report = trainer.get_report()
 
     return train_report
 
 
 def test(model_dir, ckpt_name='best'):
+    """
+    Test the model in a checkpoint on the entire dataset.
+    """
     ckpt = torch.load(f'{model_dir}/{ckpt_name}.pth')
     config = ckpt['config']
 
@@ -95,40 +101,43 @@ def test(model_dir, ckpt_name='best'):
     report.to_csv(os.path.join(model_dir, f'ckpt-{ckpt_name}', f"Test-Report.csv"), sep=',')
 
 
-def run_single_experiment():
-    exp_config = ExperimentConfigs(model_name='DARN', lr=0.00001, slice_size=32, batch_size=2,
+def run_single_experiment(outputs_dir):
+    """
+    Run a single experiment
+    """
+    os.makedirs(outputs_dir, exist_ok=True)
+    logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+
+    exp_config = ExperimentConfigs(model_name='DARN', starting_lr=0.00001, slice_size=32, batch_size=2,
                                    augment_data=True, Z_normalization=True, force_non_empty=True, ignore_background=True,
                                    train_steps=200000, eval_freq=1000, train_tag="Deep-supervision")
-    model_dir = f"{outputs_root}/train_dir/{os.path.basename(exp_config.data_path)}/{exp_config}"
-    os.makedirs(model_dir, exist_ok=True)
-    logging.basicConfig(filename=f"{model_dir}/log-file.log", level=logging.INFO)
 
-    train_report = train(exp_config, model_dir)
+    train_report = train(exp_config, outputs_dir)
 
-    print(train_report)
+    logging.info(train_report)
 
 
-def run_multiple_experiments():
-    outputs_dir = f"{outputs_root}/cluster_training"
+def run_multiple_experiments(outputs_dir):
+    """
+    Run multiple models with common configs on multple test sets and produce a report.
+    """
     os.makedirs(outputs_dir, exist_ok=True)
     logging.basicConfig(filename=os.path.join(outputs_dir, 'log-file.log'), format='%(asctime)s:%(message)s', level=logging.INFO, datefmt='%m-%d %H:%M:%S')
 
     full_report = pd.DataFrame()
-    common_kwargs = dict(lr=0.00001, augment_data=True, force_non_empty=True, batch_size=32, eval_freq=1000, train_steps=30000, train_tag="MoreAUG", dice_loss_weight=0)
+    common_kwargs = dict(starting_lr=0.0001, batch_size=32, eval_freq=1000, train_steps=30000, num_workers=0)
     for exp_config in [
-            ExperimentConfigs(model_name='UNet', slice_size=1, **common_kwargs),
-            # ExperimentConfigs(model_name='VGGUNet', slice_size=1, **common_kwargs),
-            ExperimentConfigs(model_name='VGGUNet2_5D', slice_size=3, **common_kwargs)
+            ExperimentConfigs(model_name='UNet', slice_size=1, wce_loss_weight=0, **common_kwargs),
+            # ExperimentConfigs(model_name='UNet', slice_size=1, wce_loss_weight=0, augment_data=True, force_non_empty=True, **common_kwargs),
     ]:
         logging.info(f'#### {exp_config} ####')
         experiment_report = dict(Model_name=str(exp_config), N_slices=exp_config.train_steps * exp_config.batch_size * exp_config.slice_size)
         for val_set in ['A']:
             logging.info(f'# Validation set {val_set}')
-
             exp_config.val_set = val_set
-            model_dir = f"{outputs_dir}/{exp_config}"
 
-            train_report = train(exp_config, model_dir)
+            train_report = train(exp_config, outputs_dir)
+
             experiment_report.update({f"{k}-{val_set}": v for k,v in train_report.items()})
 
         full_report = full_report.append(experiment_report, ignore_index=True)
@@ -143,5 +152,5 @@ if __name__ == '__main__':
     random.seed(1)
     torch.manual_seed(1)
     # run_single_experiment()
-    run_multiple_experiments()
+    run_multiple_experiments(f"{outputs_root}/cluster_training_no_wce")
     # test('/mnt/storage_ssd/train_outputs/cluster_training/UNet_R-128_Aug_FNE_V-A', ckpt_name='best')

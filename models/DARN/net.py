@@ -28,9 +28,9 @@ class DoubleConv(nn.Module):
 class Down(nn.Module):
     """Downscaling with maxpool then double conv"""
 
-    def __init__(self, in_channels, out_channels, trilinear=True, bias=False):
+    def __init__(self, in_channels, out_channels, trilinear_upsample=True, bias=False):
         super().__init__()
-        if trilinear:
+        if trilinear_upsample:
             self.layers = [nn.MaxPool3d(kernel_size=2, stride=2, padding=0)]
         else:
             self.layers = [nn.Conv3d(in_channels, in_channels, kernel_size=3, padding=1, bias=bias, stride=2)]
@@ -45,12 +45,12 @@ class Down(nn.Module):
 class Up(nn.Module):
     """Upscaling then double conv"""
 
-    def __init__(self, in_channels, out_channels, trilinear=True):
+    def __init__(self, in_channels, out_channels, trilinear_upsample=True):
         super().__init__()
 
-        # if bilinear, use the normal convolutions to reduce the number of channels
-        if trilinear:
-            self.up = nn.Upsample(scale_factor=2, mode='trilinear', align_corners=True)
+        # if bilinear_upsample, use the normal convolutions to reduce the number of channels
+        if trilinear_upsample:
+            self.up = nn.Upsample(scale_factor=2, mode='trilinear_upsample', align_corners=True)
             self.conv = DoubleConv(in_channels, out_channels, in_channels // 2)
         else:
             self.up = nn.ConvTranspose3d(in_channels, in_channels // 2, kernel_size=2, stride=2)
@@ -127,21 +127,21 @@ class SpaRef(nn.Module):
 
 
 class DARN(nn.Module):
-    def __init__(self, n_classes, trilinear=True, bias=False):
+    def __init__(self, n_classes, p=8, trilinear_upsample=True, bias=False):
         super(DARN, self).__init__()
         self.n_classes = n_classes
-        self.trilinear = trilinear
-        p = 8
+        self.trilinear_upsample = trilinear_upsample
+
         self.inc = DoubleConv(1, p, bias)
         self.down1 = Down(p, p*2, bias)
         self.down2 = Down(p*2, p*4, bias)
         self.down3 = Down(p*4, p*8, bias)
-        factor = 2 if trilinear else 1
+        factor = 2 if trilinear_upsample else 1
         self.down4 = Down(p*8, p*16 // factor, bias)
-        self.up1 = Up(p*16, p*8 // factor, trilinear)
-        self.up2 = Up(p*8, p*4 // factor, trilinear)
-        self.up3 = Up(p*4, p*2 // factor, trilinear)
-        self.up4 = Up(p*2, p, trilinear)
+        self.up1 = Up(p*16, p*8 // factor, trilinear_upsample)
+        self.up2 = Up(p*8, p*4 // factor, trilinear_upsample)
+        self.up3 = Up(p*4, p*2 // factor, trilinear_upsample)
+        self.up4 = Up(p*2, p, trilinear_upsample)
 
         self.upscale_2 = nn.Upsample(scale_factor=2, mode='trilinear', align_corners=True)
         self.upscale_4 = nn.Upsample(scale_factor=4, mode='trilinear', align_corners=True)

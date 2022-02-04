@@ -42,12 +42,12 @@ class Down(nn.Module):
 class Up(nn.Module):
     """Upscaling then double conv"""
 
-    def __init__(self, in_channels, out_channels, trilinear=True):
+    def __init__(self, in_channels, out_channels, trilinear_upsample=True):
         super().__init__()
 
-        # if bilinear, use the normal convolutions to reduce the number of channels
-        if trilinear:
-            self.up = nn.Upsample(scale_factor=2, mode='trilinear', align_corners=True)
+        # if bilinear_upsample, use the normal convolutions to reduce the number of channels
+        if trilinear_upsample:
+            self.up = nn.Upsample(scale_factor=2, mode='trilinear_upsample', align_corners=True)
             self.conv = DoubleConv(in_channels, out_channels, in_channels // 2)
         else:
             self.up = nn.ConvTranspose3d(in_channels, in_channels // 2, kernel_size=2, stride=2)
@@ -78,23 +78,22 @@ class OutConv(nn.Module):
 
 
 class UNet3D(nn.Module):
-    def __init__(self, n_channels, n_classes, trilinear=True, bias=False):
+    def __init__(self, n_channels, n_classes, p=32, trilinear_upsample=True, bias=False):
         super(UNet3D, self).__init__()
         self.n_channels = n_channels
         self.n_classes = n_classes
-        self.trilinear = trilinear
+        self.trilinear_upsample = trilinear_upsample
 
-        p = 32
         self.inc = DoubleConv(n_channels, p, bias)
         self.down1 = Down(p, p*2, bias)
         self.down2 = Down(p*2, p*4, bias)
         self.down3 = Down(p*4, p*8, bias)
-        factor = 2 if trilinear else 1
+        factor = 2 if trilinear_upsample else 1
         self.down4 = Down(p*8, p*16 // factor, bias)
-        self.up1 = Up(p*16, p*8 // factor, trilinear)
-        self.up2 = Up(p*8, p*4 // factor, trilinear)
-        self.up3 = Up(p*4, p*2 // factor, trilinear)
-        self.up4 = Up(p*2, p, trilinear)
+        self.up1 = Up(p*16, p*8 // factor, trilinear_upsample)
+        self.up2 = Up(p*8, p*4 // factor, trilinear_upsample)
+        self.up3 = Up(p*4, p*2 // factor, trilinear_upsample)
+        self.up4 = Up(p*2, p, trilinear_upsample)
         self.outc = OutConv(p, n_classes)
 
     def forward(self, x):

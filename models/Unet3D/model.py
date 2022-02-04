@@ -7,11 +7,16 @@ from models.generic_model import SegmentationModel, optimizer_to
 
 
 class UNet3DModel(SegmentationModel):
-    def __init__(self, n_classes, trilinear, slice_size=16, lr=0.0001):
+    def __init__(self, n_classes, p, trilinear_upsample, slice_size=16, lr=0.0001):
         super(UNet3DModel, self).__init__(1, n_classes)
-        self.net = UNet3D(1, n_classes, trilinear=trilinear)
+        self.net = UNet3D(1, n_classes, p, trilinear_upsample=trilinear_upsample)
         self.slice_size = slice_size
         self.optimizer = optim.Adam(self.net.parameters(), lr=lr)
+
+        self.name = f"UNet3D(p={p},s={slice_size}" + (',TUS' if trilinear_upsample else '') + ")"
+
+    def __str__(self):
+        return self.name
 
     def train_one_sample(self, ct_volume, gt_volume, mask_volume, volume_crieteria):
         self.net.train()

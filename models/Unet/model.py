@@ -5,11 +5,15 @@ from models.generic_model import SegmentationModel, optimizer_to
 
 
 class UnetModel(SegmentationModel):
-    def __init__(self, n_channels, n_classes, lr, bilinear=True, bias=False, eval_batchsize=1):
+    def __init__(self, n_channels, n_classes, p, lr, bilinear_upsample=True, bias=False, eval_batchsize=1):
         super(UnetModel, self).__init__(n_channels, n_classes)
-        self.net = UNet(n_channels, n_classes, bilinear=bilinear, bias=bias)
+        self.net = UNet(n_channels, n_classes, p, bilinear_upsample=bilinear_upsample, bias=bias)
         self.optimizer = optim.Adam(self.net.parameters(), lr=lr)
         self.eval_batchsize = eval_batchsize
+        self.name = f"UNet(p={p}" + (',BUS' if bilinear_upsample else '') + (',bias' if bias else '') + ")"
+
+    def __str__(self):
+        return self.name
 
     def train_one_sample(self, ct_volume, gt_volume, mask_volume, volume_crieteria):
         self.net.train()

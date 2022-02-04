@@ -175,7 +175,7 @@ class RandomAffine:
         if torch.rand(1) < self.p:
             image_size = F._get_image_size(image)
             ret = transforms.RandomAffine.get_params(self.degrees, self.translate, self.scale, None, img_size=image_size)
-            image = F.affine(image, *ret, interpolation=InterpolationMode.BILINEAR)
+            image = F.affine(image, *ret, interpolation=InterpolationMode.bilinear_upsample)
             segmap = F.affine(segmap, *ret, interpolation=InterpolationMode.NEAREST)
 
             

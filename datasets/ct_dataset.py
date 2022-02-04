@@ -132,7 +132,6 @@ def get_datasets(data_config):
 def get_dataloaders(data_config):
     """
     Get dataloaders for training and evaluation.
-    train_by_volume: 3d/2d training returns full CT volumes (batch_size, slices, H, W) or (batch_size, H, W)
     """
     train_set, val_set = get_datasets(data_config)
 

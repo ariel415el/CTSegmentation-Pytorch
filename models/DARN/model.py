@@ -7,9 +7,9 @@ from models.generic_model import SegmentationModel, optimizer_to
 
 
 class DARNModel(SegmentationModel):
-    def __init__(self, n_classes, trilinear, slice_size, lr):
+    def __init__(self, n_classes, trilinear_upsample, slice_size, p, lr):
         super(DARNModel, self).__init__(1, n_classes)
-        self.net = DARN(n_classes, trilinear, bias=False)
+        self.net = DARN(n_classes, p, trilinear_upsample, bias=False)
         self.slice_size = slice_size
         self.optimizer = optim.Adam(self.net.parameters(), lr=lr)
 
