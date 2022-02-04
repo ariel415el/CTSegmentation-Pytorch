@@ -58,7 +58,13 @@ class CNNTrainer:
 
                 self.save_checkpoint(model, name='latest')
                 if self.is_last_smoothed_score_best('Dice-class-1'):
-                    self.save_checkpoint(model, 'best')
+                    self.save_checkpoint(model, name='best')
+
+            if self.step % self.config.ckpt_frequency == 0:
+                self.save_checkpoint(model, name=f'step-{self.step}')
+
+            if self.step % self.config.decay_steps == 0 and self.step > 0:
+                model.decay_learning_rate(self.config.decay_factor)
 
             self.step += 1
             if self.step > self.config.train_steps:

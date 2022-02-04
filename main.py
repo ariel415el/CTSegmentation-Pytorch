@@ -91,7 +91,7 @@ def test(model_dir, ckpt_name='best'):
     validation_report = evaluate(model, val_loader, config.device, volume_crieteria, outputs_dir=os.path.join(model_dir, f'ckpt-{ckpt_name}', "val_debug"))
 
     report = pd.DataFrame()
-    report.append({f"best-{k}": f"{train_report[k]:.3f} / {validation_report[k]:.3f}" for k in train_report}, ignore_index=True)
+    report = report.append({f"{ckpt_name}-{k}": f"{train_report[k]:.3f} / {validation_report[k]:.3f}" for k in train_report}, ignore_index=True)
     report.to_csv(os.path.join(model_dir, f'ckpt-{ckpt_name}', f"Test-Report.csv"), sep=',')
 
 
@@ -114,11 +114,11 @@ def run_multiple_experiments():
     logging.basicConfig(filename=os.path.join(outputs_dir, 'log-file.log'), format='%(asctime)s:%(message)s', level=logging.INFO, datefmt='%m-%d %H:%M:%S')
 
     full_report = pd.DataFrame()
-    common_kwargs = dict(lr=0.00001, augment_data=True, force_non_empty=True, batch_size=32, eval_freq=1000, train_steps=10000, train_tag="")
+    common_kwargs = dict(lr=0.00001, augment_data=True, force_non_empty=True, batch_size=32, eval_freq=1000, train_steps=30000, train_tag="MoreAUG", dice_loss_weight=0)
     for exp_config in [
             ExperimentConfigs(model_name='UNet', slice_size=1, **common_kwargs),
             # ExperimentConfigs(model_name='VGGUNet', slice_size=1, **common_kwargs),
-            # ExperimentConfigs(model_name='VGGUNet2_5D', slice_size=3, **common_kwargs)
+            ExperimentConfigs(model_name='VGGUNet2_5D', slice_size=3, **common_kwargs)
     ]:
         logging.info(f'#### {exp_config} ####')
         experiment_report = dict(Model_name=str(exp_config), N_slices=exp_config.train_steps * exp_config.batch_size * exp_config.slice_size)
@@ -143,5 +143,5 @@ if __name__ == '__main__':
     random.seed(1)
     torch.manual_seed(1)
     # run_single_experiment()
-    # run_multiple_experiments()
-    test('/mnt/storage_ssd/train_outputs/cluster_training/UNet_R-128_Aug_FNE_V-A', ckpt_name='5000')
+    run_multiple_experiments()
+    # test('/mnt/storage_ssd/train_outputs/cluster_training/UNet_R-128_Aug_FNE_V-A', ckpt_name='best')

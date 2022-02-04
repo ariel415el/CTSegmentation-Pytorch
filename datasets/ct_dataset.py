@@ -77,7 +77,7 @@ def get_transforms(data_config):
     train_transforms = [SliceVolume(slice_size=data_config.slice_size, force_non_empty=data_config.force_non_empty)]
     if data_config.augment_data:
         train_transforms += [
-            augmentations.ElasticDeformation3D(sigma=7, p=0.1),
+            augmentations.ElasticDeformation3D(sigma=7, p=0.5),
             augmentations.RandomCrop(p=1),
             augmentations.random_clip((-200, -50), (256, 1024))
         ]
@@ -91,7 +91,7 @@ def get_transforms(data_config):
         train_transforms += [
             ToTensor(),
             augmentations.random_flips(p=1),
-            augmentations.RandomAffine(p=0.3, degrees=(-45, 45), translate=(0, 0.15), scale=(0.75, 1)),
+            augmentations.RandomAffine(p=0.75, degrees=(-45, 45), translate=(0, 0.15), scale=(0.75, 1)),
             augmentations.Resize(data_config.resize),
             augmentations.random_noise(p=0.5, std_factor=0.25),
         ]

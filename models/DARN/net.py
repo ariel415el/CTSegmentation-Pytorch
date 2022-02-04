@@ -131,7 +131,7 @@ class DARN(nn.Module):
         super(DARN, self).__init__()
         self.n_classes = n_classes
         self.trilinear = trilinear
-        p = 32
+        p = 8
         self.inc = DoubleConv(1, p, bias)
         self.down1 = Down(p, p*2, bias)
         self.down2 = Down(p*2, p*4, bias)
