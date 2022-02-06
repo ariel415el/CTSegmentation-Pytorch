@@ -32,6 +32,7 @@ class ExperimentConfigs:
     decay_factor: float = 1
     dice_loss_weight: int = 1
     wce_loss_weight: int = 1
+    ce_loss_weight: int = 0
     ckpt_frequency: int = 10000
     train_steps: int = 50 * 500
     eval_freq: int = 500
@@ -49,7 +50,7 @@ class ExperimentConfigs:
 
     def get_train_configs(self):
         return TrainConfigs(self.device, self.decay_steps, self.decay_factor, self.dice_loss_weight,
-                            self.wce_loss_weight, self.ckpt_frequency, self.train_steps, self.eval_freq)
+                            self.wce_loss_weight, self.ce_loss_weight, self.ckpt_frequency, self.train_steps, self.eval_freq)
 
     def __str__(self):
         return f"{'_Aug' if self.augment_data else ''}" \
@@ -59,7 +60,7 @@ class ExperimentConfigs:
                f"{'_HistEq' if self.hist_equalization else ''}" \
                f"{'_ZNorm' if self.Z_normalization else ''}" \
                f"{'_FNE' if self.force_non_empty else ''}" \
-               f"_Loss({self.dice_loss_weight:.1f}Dice+{self.wce_loss_weight:.1f}WCE)" \
+               f"_Loss({self.dice_loss_weight:.1f}Dice+{self.wce_loss_weight:.1f}WCE+{self.ce_loss_weight:.1f}CE)" \
                f"{'_' + self.train_tag if self.train_tag else ''}" \
                f"_V-{self.val_set}"
 
@@ -95,6 +96,7 @@ class TrainConfigs:
     decay_factor: float
     dice_loss_weight: int
     wce_loss_weight: int
+    ce_loss_weight: int
     ckpt_frequency: int
     train_steps: int
     eval_freq: int

@@ -40,15 +40,15 @@ class HistogramEqualization:
 
         return image, segmap
 
+
 class Znormalization:
     def __call__(self, sample):
         image, segmap = sample
 
         image = (image - image.mean()) / image.std()
 
-        
-
         return image, segmap
+
 
 class RandomScale:
     def __init__(self, p=0.5, scale_range=(128,256)):
@@ -65,9 +65,8 @@ class RandomScale:
             image = transforms.Resize((new_h, new_w))(torch.from_numpy(image).unsqueeze(0))[0].numpy()
             segmap = transforms.Resize((new_h, new_w), interpolation=InterpolationMode.NEAREST)(torch.from_numpy(segmap).unsqueeze(0))[0].numpy()
 
-            
-
         return image, segmap
+
 
 class RandomCrop:
     """Crop randomly the image in a sample.
@@ -91,8 +90,6 @@ class RandomCrop:
 
             image = image[..., top: top + new_h, left: left + new_w]
             segmap = segmap[..., top: top + new_h, left: left + new_w]
-
-            
 
         return image, segmap
 
@@ -163,6 +160,7 @@ class ElasticDeformation3D:
 
         return image, segmap
 
+
 class RandomAffine:
     def __init__(self, p=0.5, degrees=(30, 70), translate=(0.1, 0.3), scale=(0.5, 0.75)):
         self.p = p
@@ -175,12 +173,11 @@ class RandomAffine:
         if torch.rand(1) < self.p:
             image_size = F._get_image_size(image)
             ret = transforms.RandomAffine.get_params(self.degrees, self.translate, self.scale, None, img_size=image_size)
-            image = F.affine(image, *ret, interpolation=InterpolationMode.bilinear_upsample)
+            image = F.affine(image, *ret, interpolation=InterpolationMode.BILINEAR)
             segmap = F.affine(segmap, *ret, interpolation=InterpolationMode.NEAREST)
 
-            
-
         return image, segmap
+
 
 class random_flips:
     def __init__(self, p=0.5):
@@ -194,9 +191,8 @@ class random_flips:
             if torch.rand(1) < 0.5:
                 image, segmap = F.vflip(image), F.vflip(segmap)
 
-            
-
         return image, segmap
+
 
 class random_noise:
     def __init__(self, p=0.5, std_factor=0.5):
@@ -211,9 +207,8 @@ class random_noise:
             image += torch.randn(image.shape) * self.std_factor * image.std()
             image = image.to(dtype=dtype)
 
-            
-
         return image, segmap
+
 
 class random_clip:
     def __init__(self, min_interval=(-512, -511), max_interval=(512,513)):

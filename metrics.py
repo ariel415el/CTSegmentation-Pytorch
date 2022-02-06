@@ -112,8 +112,9 @@ def compute_segmentation_score(score_func, pred_volume, segmentation_volume, mas
 
 
 class VolumeLoss:
-    def __init__(self, dice_weight=1, ce_weight=1):
+    def __init__(self, dice_weight, wce_weight, ce_weight):
         self.dice_weight = dice_weight
+        self.wce_weight = wce_weight
         self.ce_weight = ce_weight
         self.dice_loss = TverskyScore(0.5, 0.5)
 
@@ -130,10 +131,13 @@ class VolumeLoss:
         if self.dice_weight > 0:
             dice_loss = compute_segmentation_loss(self.dice_loss, preds, gts.unsqueeze(1), mask.unsqueeze(1))
             loss += self.dice_weight * dice_loss
-        if self.ce_weight > 0:
+        if self.wce_weight > 0:
             class_weights = torch.tensor([1,(gts == 0).sum() / (gts == 1).sum()]).to(preds.device)
             ce_loss = torch.nn.CrossEntropyLoss(weight=class_weights)(preds, gts)
-            loss = self.ce_weight * ce_loss
+            loss += self.wce_weight * ce_loss
+        elif self.ce_weight > 0:
+            ce_loss = torch.nn.CrossEntropyLoss()(preds, gts)
+            loss += self.ce_weight * ce_loss
         return loss
 
 

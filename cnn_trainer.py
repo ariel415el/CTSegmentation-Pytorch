@@ -28,7 +28,7 @@ class CNNTrainer:
         Manages the training process of a model and monitors it
         """
         self.config = train_configs
-        self.volume_crieteria = VolumeLoss(self.config.dice_loss_weight, self.config.wce_loss_weight)
+        self.volume_crieteria = VolumeLoss(self.config.dice_loss_weight, self.config.wce_loss_weight, self.config.ce_loss_weight)
         self.step = 0
         self.plot_data = defaultdict(list)
         self.plot_data_means = defaultdict(list)
