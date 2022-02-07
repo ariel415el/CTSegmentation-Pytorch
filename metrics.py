@@ -132,11 +132,11 @@ class VolumeLoss:
             dice_loss = compute_segmentation_loss(self.dice_loss, preds, gts.unsqueeze(1), mask.unsqueeze(1))
             loss += self.dice_weight * dice_loss
         if self.wce_weight > 0:
-            class_weights = torch.tensor([1,(gts == 0).sum() / (gts == 1).sum()]).to(preds.device)
-            ce_loss = torch.nn.CrossEntropyLoss(weight=class_weights)(preds, gts)
-            loss += self.wce_weight * ce_loss
+            class_weights = torch.tensor([1,(gts[mask] == 0).sum() / (gts[mask] == 1).sum()]).to(preds.device)
+            wce_loss = torch.nn.CrossEntropyLoss(weight=class_weights, reduction='none')(preds, gts)[mask].mean()
+            loss += self.wce_weight * wce_loss
         elif self.ce_weight > 0:
-            ce_loss = torch.nn.CrossEntropyLoss()(preds, gts)
+            ce_loss = torch.nn.CrossEntropyLoss(reduction='none')(preds, gts)[mask].mean()
             loss += self.ce_weight * ce_loss
         return loss
 
