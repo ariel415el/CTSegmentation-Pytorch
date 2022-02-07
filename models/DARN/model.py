@@ -13,6 +13,11 @@ class DARNModel(SegmentationModel):
         self.slice_size = slice_size
         self.optimizer = optim.Adam(self.net.parameters(), lr=lr)
 
+        self.name = f"DARN(p={p},s={slice_size}" + (',TUS' if trilinear_upsample else '') + ")"
+
+    def __str__(self):
+        return self.name
+
     def train_one_sample(self, ct_volume, gt_volume, mask_volume, volume_crieteria):
         self.net.train()
         pred, intermediate_maps = self.net(ct_volume)

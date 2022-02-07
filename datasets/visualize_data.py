@@ -73,24 +73,19 @@ def visualize_augmentations(data_paths, outputs_dir):
     """
     Visualize the isolated effect of each image augmentation
     """
-
     transforms = [
-        # (tv_transforms.Compose([ToTensor()]), 1, 'raw'),
-        (tv_transforms.Compose([random_clip(-100, 400), ToTensor()]), 1, 'original-clipped'),
-        (tv_transforms.Compose([random_clip(-100, 400), ToTensor(), RandomAffine(p=1, degrees=(-45, 45), translate=(0,0.15), scale=(0.75, 1))]), 1, 'scale1'),
-        (tv_transforms.Compose([random_clip(-100, 400), ToTensor(), RandomAffine(p=1, degrees=(-45, 45), translate=(0,0.15), scale=(0.75, 1))]), 1, 'scale2'),
-        # (tv_transforms.Compose([random_clip(-100, 400), ToTensor(), RandomAffine(p=1, degrees=None, translate=None, scale=(0.5, 0.75))]), 1, 'scale'),
-        # (tv_transforms.Compose([random_clip(-100, 400), ToTensor(), RandomAffine(p=1, degrees=None, translate=(0.1, 0.3), scale=None)]), 1, 'translate'),
-        # (tv_transforms.Compose([random_clip(-100, 400), ToTensor(), RandomAffine(p=1, degrees=(30, 70), translate=None, scale=None)]), 1, 'rotate'),
-        # (tv_transforms.Compose([random_clip(-100, 400), HistogramEqualization(256), ToTensor()]), 1, 'Clip+Hist'),
-        # (tv_transforms.Compose([random_clip(-100, 400), HistogramEqualization(256), Znormalization(), ToTensor()]), 1, 'Clip+Hist+Znorm'),
-        # (tv_transforms.Compose([histogram_equalization(nbins=256), ToTensor()]), 1, 'HistEqual'),
-        # (tv_transforms.Compose([random_clip((-200, -50), (256, 1024)), ToTensor()]), 3, 'Rclip'),
-        # (tv_transforms.Compose([random_clip(-100, 400), ElasticDeformation3D(sigma=5, p=1), ToTensor()]), 3, 'elastic'),
-        # (tv_transforms.Compose([random_clip(-100, 400), RandomCrop(p=1), ToTensor()]), 3, 'Rcrop'),
-        # (tv_transforms.Compose([random_clip(-100, 400), ToTensor(), Resize(256)]), 1, 'Resize'),
-        # (tv_transforms.Compose([random_clip(-100, 400), ToTensor(), random_flips(p=1)]), 3, 'flip'),
-        # (tv_transforms.Compose([random_clip(-100, 400), ToTensor(), random_noise(p=1, std=0.25)]), 1, 'noise'),
+        (ToTensor(), 1, "original-clipped"),
+        (tv_transforms.Compose([
+            ElasticDeformation3D(sigma=7, p=0.5),
+            RandomCrop(p=1),
+            random_clip((-200, -50), (256, 1024)),
+            Znormalization(),
+            ToTensor(),
+            random_flips(p=1),
+            RandomAffine(p=0.75, degrees=(-45, 45), translate=(0, 0.15), scale=(0.75, 1)),
+            Resize(128),
+            random_noise(p=0.5, std_factor=0.25),
+        ]), 10, 'train_transforms')
     ]
 
     for (t, n_repeats, t_name) in transforms:
@@ -149,6 +144,6 @@ if __name__ == '__main__':
     data_path = 'datasets/LiTS2017_(MS-(3, 15, 15)_MM-2_Crop-CL-1_margins-(1, 1, 1)_OB-0.5_MD-11)'
     data_paths = get_data_pathes(data_path)
     sorted(data_paths)
-    data_paths = data_paths[32:33]
+    data_paths = data_paths[50:55]
     #
     visualize_augmentations(data_paths, os.path.join(data_path, "visualize_augmentations"))

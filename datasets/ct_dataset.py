@@ -125,20 +125,22 @@ def get_datasets(data_config):
     train_transforms, val_transforms = get_transforms(data_config)
     tarin_set = CTDataset(train_paths, transforms=train_transforms, delete_bakground=data_config.delete_background, ignore_background=data_config.ignore_background)
     val_set = CTDataset(val_paths, transforms=val_transforms, delete_bakground=data_config.delete_background, ignore_background=data_config.ignore_background)
+    aug_val_set = CTDataset(val_paths, transforms=train_transforms, delete_bakground=data_config.delete_background, ignore_background=data_config.ignore_background)
 
-    return tarin_set, val_set
+    return tarin_set, val_set, aug_val_set
 
 
 def get_dataloaders(data_config):
     """
     Get dataloaders for training and evaluation.
     """
-    train_set, val_set = get_datasets(data_config)
+    train_set, val_set, aug_val_loader = get_datasets(data_config)
 
     train_loader = DataLoader(train_set, shuffle=True, batch_size=data_config.batch_size, num_workers=data_config.num_workers)
     val_loader = DataLoader(val_set, shuffle=True, batch_size=1, num_workers=data_config.num_workers)
+    aug_val_loader = DataLoader(val_set, shuffle=True, batch_size=1, num_workers=data_config.num_workers)
 
-    return train_loader, val_loader
+    return train_loader, val_loader, aug_val_loader
 
 
 class CTDataset(Dataset):

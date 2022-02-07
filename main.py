@@ -1,14 +1,10 @@
-import glob
 import logging
 import os
 import random
 import sys
-from copy import copy
 import pandas as pd
-import torch
-from time import time
+import json
 
-from datetime import datetime
 from datasets.ct_dataset import get_dataloaders
 from evaluate import evaluate
 from cnn_trainer import CNNTrainer
@@ -16,6 +12,7 @@ from cnn_trainer import CNNTrainer
 import models
 from config import *
 from metrics import VolumeLoss
+
 
 
 def get_model(config):
@@ -32,6 +29,7 @@ def get_model(config):
                                     bilinear_upsample=not config.learnable_upsamples,
                                     eval_batchsize=32)
     elif config.model_name == 'VGGUNet2_5D':
+        assert config.slice_size ==3
         model = models.VGGUnet2_5DModel(n_classes=config.n_classes,
                                         lr=config.starting_lr,
                                         bilinear_upsample=not config.learnable_upsamples,
@@ -48,7 +46,7 @@ def get_model(config):
                                    trilinear_upsample=not config.learnable_upsamples,
                                    slice_size=config.slice_size,
                                    p=8,
-                                   lr=config.lr)
+                                   lr=config.starting_lr)
     else:
         raise Exception("No such train method")
 
@@ -61,6 +59,9 @@ def train(exp_config, outputs_dir):
     trainer = CNNTrainer(exp_config.get_train_configs())
 
     model_dir = f"{outputs_dir}/{model}_{exp_config}"
+
+    # copy config file
+    exp_config.write_to_file(model_dir)
 
     # Try to load checkpoint
     if os.path.exists(os.path.join(model_dir, "latest.pth")):
@@ -80,19 +81,21 @@ def test(model_dir, ckpt_name='best'):
     Test the model in a checkpoint on the entire dataset.
     """
     ckpt = torch.load(f'{model_dir}/{ckpt_name}.pth')
-    config = ckpt['config']
+
+    # config = json.load(open(f"{model_dir}.exp_configs.json"))
+    config = ExperimentConfigs(model_name='UNet', augment_data=True, Z_normalization=True, force_non_empty=True, ignore_background=True,dice_loss_weight=0)
 
     # get dataloaders
     config.batch_size = 1
-    train_loader, val_loader = get_dataloaders(config)
+    train_loader, val_loader, _ = get_dataloaders(config.get_data_config())
     train_loader.dataset.transforms = val_loader.dataset.transforms  # avoid slicing and use full volumes
 
     # get model
-    model = get_model(config)
+    model = get_model(config.get_model_config())
     model.load_state_dict(ckpt['model'])
     model.to(config.device)
 
-    volume_crieteria = VolumeLoss(config.dice_loss_weight, config.wce_loss_weight)
+    volume_crieteria = VolumeLoss(config.dice_loss_weight, config.wce_loss_weight, config.ce_loss_weight)
     train_report = evaluate(model, train_loader, config.device, volume_crieteria, outputs_dir=os.path.join(model_dir, f'ckpt-{ckpt_name}', "train_debug"))
     validation_report = evaluate(model, val_loader, config.device, volume_crieteria, outputs_dir=os.path.join(model_dir, f'ckpt-{ckpt_name}', "val_debug"))
 
@@ -125,10 +128,15 @@ def run_multiple_experiments(outputs_dir):
     logging.basicConfig(filename=os.path.join(outputs_dir, 'log-file.log'), format='%(asctime)s:%(message)s', level=logging.INFO, datefmt='%m-%d %H:%M:%S')
 
     full_report = pd.DataFrame()
-    common_kwargs = dict(starting_lr=0.0001, batch_size=32, eval_freq=1000, train_steps=30000, num_workers=0)
+    common_kwargs = dict(model_name='UNet', starting_lr=0.00001, batch_size=32, augment_data=True, Z_normalization=True, num_workers=4)
     for exp_config in [
-            ExperimentConfigs(model_name='UNet', slice_size=1, wce_loss_weight=0, **common_kwargs),
-            # ExperimentConfigs(model_name='UNet', slice_size=1, wce_loss_weight=0, augment_data=True, force_non_empty=True, **common_kwargs),
+            # ExperimentConfigs(force_non_empty=False, wce_loss_weight=1, dice_loss_weight=0, ce_loss_weight=0, **common_kwargs),
+            # ExperimentConfigs(force_non_empty=False, wce_loss_weight=0, dice_loss_weight=0, ce_loss_weight=1, **common_kwargs),
+            # ExperimentConfigs(wce_loss_weight=0, **common_kwargs),
+            ExperimentConfigs(force_non_empty=True, ignore_background=True, wce_loss_weight=0, **common_kwargs),
+            ExperimentConfigs(force_non_empty=True, delete_background=True, wce_loss_weight=0, **common_kwargs),
+            ExperimentConfigs(ignore_background=True, dice_loss_weight=0, **common_kwargs),
+            ExperimentConfigs(delete_background=True, dice_loss_weight=0, **common_kwargs),
     ]:
         logging.info(f'#### {exp_config} ####')
         experiment_report = dict(Model_name=str(exp_config), N_slices=exp_config.train_steps * exp_config.batch_size * exp_config.slice_size)
@@ -152,5 +160,5 @@ if __name__ == '__main__':
     random.seed(1)
     torch.manual_seed(1)
     # run_single_experiment()
-    run_multiple_experiments(f"{outputs_root}/cluster_training_no_wce")
-    # test('/mnt/storage_ssd/train_outputs/cluster_training/UNet_R-128_Aug_FNE_V-A', ckpt_name='best')
+    run_multiple_experiments(f"{outputs_root}/cluster_training_test_delete_with_ignore_FNE+Dice_and_noFNE+WCE")
+    # test('/mnt/storage_ssd/train_outputs/cluster_training_compare_losses_with_aug/UNet(p=64,BUS)__Aug_MaskBg_ZNorm_FNE_Loss(0.0Dice+1.0WCE+0.0CE)_V-A', ckpt_name='step-30000')

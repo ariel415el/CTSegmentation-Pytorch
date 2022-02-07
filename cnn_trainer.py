@@ -43,7 +43,7 @@ class CNNTrainer:
         model.to(self.config.device)
         model.train()
 
-        train_loader, val_loader = dataloaders
+        train_loader, val_loader, aug_val_loader = dataloaders
 
         logging.info('Training..')
         start = time()
@@ -63,6 +63,9 @@ class CNNTrainer:
                 validation_report = evaluate(model, val_loader, self.config.device, self.volume_crieteria)
                 validation_report['val-loss'] = validation_report.pop('Loss')
                 self.register_plot_data(validation_report)
+                aug_validation_report = evaluate(model, aug_val_loader, self.config.device, self.volume_crieteria)
+                aug_validation_report['val-loss'] = aug_validation_report.pop('Loss')
+                self.register_plot_data({f"aug-{k}":v for k,v in validation_report.items()})
                 self.plot()
 
                 self.save_checkpoint(model, name='latest')
@@ -89,7 +92,7 @@ class CNNTrainer:
         for k, v in self.plot_data_means.items():
             idx = np.argmax(v)
             report[f'{k}-({self.smooth_score_size}-smooth) Step'] = idx
-            report[f'{k}-({self.smooth_score_size}-smooth) Score'] = f"{v[idx]:.2f}"
+            report[f'{k}-({self.smooth_score_size}-smooth) Score'] = f"{v[idx]:.3f}"
         return report
 
     def register_plot_data(self, loss_dict):
@@ -98,24 +101,24 @@ class CNNTrainer:
             self.plot_data_means[k].append(np.mean(self.plot_data[k][-self.smooth_score_size:]))
 
     def plot(self):
-        metric_groups = [['train-loss', 'val-loss'], ['Dice-class-1']]
+        metric_groups = [['train-loss', 'val-loss'], ['Dice-class-1'], ['train-loss', 'val-loss', 'aug-val-loss'], ['aug-Dice-class-1', 'Dice-class-1']]
         for metric_group in metric_groups:
             nvalues = max([len(self.plot_data[k]) for k in metric_group])
             for k in metric_group:
                 plt.plot(np.linspace(0, nvalues - 1, len(self.plot_data[k])), self.plot_data[k],
-                         alpha=0.5, label=f"{k}: {self.plot_data[k][-1]:.2f}")
+                         alpha=0.5, label=f"{k}: {self.plot_data[k][-1]:.3f}")
                 plt.plot(np.linspace(0, nvalues - 1, len(self.plot_data_means[k])), self.plot_data_means[k],
-                         alpha=0.5, label=f"avg-last-{self.smooth_score_size}: {self.plot_data_means[k][-1]:.2f}")
+                         alpha=0.5, label=f"avg-last-{self.smooth_score_size}: {self.plot_data_means[k][-1]:.3f}")
             plt.legend()
             plt.savefig(f'{self.train_dir}/Plot({",".join(metric_group)}).png')
             plt.clf()
 
     def save_checkpoint(self, model, name):
         """
-        Saves model weights and trainer inner state to file and experiment config
+        Saves model weights and trainer inner state to file
         """
         trainer_state_dict = dict(step=self.step, data=self.plot_data, data_means=self.plot_data_means, train_time=self.train_time)
-        torch.save(dict(trainer=trainer_state_dict, model=model.get_state_dict(), config=self.config), f'{self.train_dir}/{name}.pth')
+        torch.save(dict(trainer=trainer_state_dict, model=model.get_state_dict()), f'{self.train_dir}/{name}.pth')
 
     def load_state(self, trainer_state):
         logging.info("loaded trainer from file")

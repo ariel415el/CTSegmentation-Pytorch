@@ -34,8 +34,8 @@ class ExperimentConfigs:
     wce_loss_weight: int = 1
     ce_loss_weight: int = 0
     ckpt_frequency: int = 10000
-    train_steps: int = 50 * 500
-    eval_freq: int = 500
+    train_steps: int = 30000
+    eval_freq: int = 1000
 
     train_tag: str = ""
 
@@ -64,6 +64,13 @@ class ExperimentConfigs:
                f"{'_' + self.train_tag if self.train_tag else ''}" \
                f"_V-{self.val_set}"
 
+    def write_to_file(self, dir_path):
+        import os
+        import json
+        os.makedirs(dir_path, exist_ok=True)
+        d = self.__dict__
+        d.pop('device')
+        json.dump(d, open(f"{dir_path}/exp_configs.json", 'w'))
 
 @dataclass
 class ModelConfigs:

@@ -30,7 +30,7 @@ class VGGUnetModel(UnetModel):
         super(VGGUnetModel, self).__init__(3, n_classes, p=64, lr=lr, bilinear_upsample=bilinear_upsample, bias=True, eval_batchsize=eval_batchsize)
         load_vgg_weights(self.net)
 
-        self.name = f"VGGUNet2_5D(" + ('BUS' if bilinear_upsample else '') + ")"
+        self.name = f"VGGUNet(" + ('BUS' if bilinear_upsample else '') + ")"
 
     def __str__(self):
         return self.name
