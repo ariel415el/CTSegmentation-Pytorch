@@ -58,6 +58,13 @@ class SliceVolume(object):
         return image, segmap
 
 
+class Znormalization:
+    def __call__(self, sample):
+        image, segmap = sample
+        image = (image - image.mean()) / image.std()
+        return image, segmap
+
+
 def get_transforms(data_config):
     val_transforms = [
         augmentations.random_clip(-100, 400),
@@ -66,31 +73,29 @@ def get_transforms(data_config):
     if data_config.hist_equalization:
         val_transforms += [augmentations.HistogramEqualization(256)]
 
-    if data_config.Z_normalization:
-        val_transforms += [augmentations.Znormalization()]
-
     val_transforms += [
+        Znormalization(),
         ToTensor(),
         augmentations.Resize(data_config.resize)
     ]
 
     train_transforms = [SliceVolume(slice_size=data_config.slice_size, force_non_empty=data_config.force_non_empty)]
     if data_config.augment_data:
+        if data_config.elastic_deformations:
+            train_transforms += [augmentations.ElasticDeformation3D(sigma=7, p=0.5)]
+
         train_transforms += [
-            augmentations.ElasticDeformation3D(sigma=7, p=0.5),
-            augmentations.RandomCrop(p=1),
+            augmentations.RandomCrop(p=0.75),
             augmentations.random_clip((-200, -50), (256, 1024))
         ]
 
         if data_config.hist_equalization:
             train_transforms += [augmentations.HistogramEqualization(256)]
 
-        if data_config.Z_normalization:
-            train_transforms += [augmentations.Znormalization()]
-
         train_transforms += [
+            Znormalization(),
             ToTensor(),
-            augmentations.random_flips(p=1),
+            augmentations.random_flips(p=0.75),
             augmentations.RandomAffine(p=0.75, degrees=(-45, 45), translate=(0, 0.15), scale=(0.75, 1)),
             augmentations.Resize(data_config.resize),
             augmentations.random_noise(p=0.5, std_factor=0.25),
@@ -125,22 +130,20 @@ def get_datasets(data_config):
     train_transforms, val_transforms = get_transforms(data_config)
     tarin_set = CTDataset(train_paths, transforms=train_transforms, delete_bakground=data_config.delete_background, ignore_background=data_config.ignore_background)
     val_set = CTDataset(val_paths, transforms=val_transforms, delete_bakground=data_config.delete_background, ignore_background=data_config.ignore_background)
-    aug_val_set = CTDataset(val_paths, transforms=train_transforms, delete_bakground=data_config.delete_background, ignore_background=data_config.ignore_background)
 
-    return tarin_set, val_set, aug_val_set
+    return tarin_set, val_set
 
 
 def get_dataloaders(data_config):
     """
     Get dataloaders for training and evaluation.
     """
-    train_set, val_set, aug_val_loader = get_datasets(data_config)
+    train_set, val_set = get_datasets(data_config)
 
     train_loader = DataLoader(train_set, shuffle=True, batch_size=data_config.batch_size, num_workers=data_config.num_workers)
     val_loader = DataLoader(val_set, shuffle=True, batch_size=1, num_workers=data_config.num_workers)
-    aug_val_loader = DataLoader(val_set, shuffle=True, batch_size=1, num_workers=data_config.num_workers)
 
-    return train_loader, val_loader, aug_val_loader
+    return train_loader, val_loader
 
 
 class CTDataset(Dataset):

@@ -41,14 +41,6 @@ class HistogramEqualization:
         return image, segmap
 
 
-class Znormalization:
-    def __call__(self, sample):
-        image, segmap = sample
-
-        image = (image - image.mean()) / image.std()
-
-        return image, segmap
-
 
 class RandomScale:
     def __init__(self, p=0.5, scale_range=(128,256)):

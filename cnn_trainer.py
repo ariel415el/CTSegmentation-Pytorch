@@ -43,7 +43,7 @@ class CNNTrainer:
         model.to(self.config.device)
         model.train()
 
-        train_loader, val_loader, aug_val_loader = dataloaders
+        train_loader, val_loader = dataloaders
 
         logging.info('Training..')
         start = time()
@@ -63,9 +63,6 @@ class CNNTrainer:
                 validation_report = evaluate(model, val_loader, self.config.device, self.volume_crieteria)
                 validation_report['val-loss'] = validation_report.pop('Loss')
                 self.register_plot_data(validation_report)
-                aug_validation_report = evaluate(model, aug_val_loader, self.config.device, self.volume_crieteria)
-                aug_validation_report['val-loss'] = aug_validation_report.pop('Loss')
-                self.register_plot_data({f"aug-{k}":v for k,v in validation_report.items()})
                 self.plot()
 
                 self.save_checkpoint(model, name='latest')
@@ -88,7 +85,7 @@ class CNNTrainer:
         return np.argmax(self.plot_data_means[metric_name]) == len(self.plot_data_means[metric_name]) - 1
 
     def get_report(self):
-        report = {'Train time (H)': self.train_time}
+        report = {'Train time (H)': f"{self.train_time/3600:.2f}"}
         for k, v in self.plot_data_means.items():
             idx = np.argmax(v)
             report[f'{k}-({self.smooth_score_size}-smooth) Step'] = idx
@@ -101,7 +98,7 @@ class CNNTrainer:
             self.plot_data_means[k].append(np.mean(self.plot_data[k][-self.smooth_score_size:]))
 
     def plot(self):
-        metric_groups = [['train-loss', 'val-loss'], ['Dice-class-1'], ['train-loss', 'val-loss', 'aug-val-loss'], ['aug-Dice-class-1', 'Dice-class-1']]
+        metric_groups = [['train-loss', 'val-loss'], ['Dice-class-1']]
         for metric_group in metric_groups:
             nvalues = max([len(self.plot_data[k]) for k in metric_group])
             for k in metric_group:
