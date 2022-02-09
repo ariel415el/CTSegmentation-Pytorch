@@ -55,6 +55,7 @@ class ExperimentConfigs:
     def __str__(self):
         return f"{self.model_name}" \
                f"{'_Aug' if self.augment_data else ''}" \
+               f"{'_Elastic' if self.elastic_deformations else ''}" \
                f"{'_LUS' if self.learnable_upsamples else ''}" \
                f"{'_ZeroBG' if self.delete_background else ''}" \
                f"{'_MaskBg' if self.ignore_background else ''}" \
