@@ -135,7 +135,7 @@ def run_single_experiment(outputs_dir):
     exp_config = ExperimentConfigs(model_name='UNet3D', starting_lr=0.00001, batch_size=4, slice_size=32,
                                    train_steps=100000, decay_steps=25000, decay_factor=0.1,
                                    wce_loss_weight=0, dice_loss_weight=0, ce_loss_weight=1,
-                                   augment_data=True, ignore_background=True, force_non_empty=True,
+                                   augment_data=True, ignore_background=True, force_non_empty=1,
                                    num_workers=2, eval_freq=1000)
 
     train_report = train(exp_config, outputs_dir)
@@ -152,17 +152,21 @@ def run_multiple_experiments(outputs_dir):
 
     full_report = pd.DataFrame()
     common_kwargs = dict(starting_lr=0.00001, batch_size=32, num_workers=2, train_steps=20000,
-                         augment_data=True, ignore_background=True, force_non_empty=True,
+                         augment_data=True, ignore_background=True,
                          dice_loss_weight=0, wce_loss_weight=0, ce_loss_weight=1)
     for exp_config in [
-        ExperimentConfigs(model_name='HeavyUNet', elastic_deformations=False, **common_kwargs),
-        ExperimentConfigs(model_name='ResUNet', elastic_deformations=False, **common_kwargs),
-        # ExperimentConfigs(model_name='RecurrentUNet', elastic_deformations=False, **common_kwargs),
-        # ExperimentConfigs(model_name='Res2Unet', elastic_deformations=False, **common_kwargs),
+        # ExperimentConfigs(model_name='HeavyUNet', force_non_empty=1, elastic_deformations=False, **common_kwargs),
+        # ExperimentConfigs(model_name='ResUNet', force_non_empty=1, elastic_deformations=False, **common_kwargs),
+        # ExperimentConfigs(model_name='RecurrentUNet', force_non_empty=1, elastic_deformations=False, **common_kwargs),
+        # ExperimentConfigs(model_name='Res2Unet', force_non_empty=1, elastic_deformations=False, **common_kwargs),
+        ExperimentConfigs(model_name='VGGUNet', force_non_empty=1, **common_kwargs),
+        ExperimentConfigs(model_name='VGGUNet2_5D', force_non_empty=1, **common_kwargs),
+        # ExperimentConfigs(model_name='VGGUNet', force_non_empty=0.5, **common_kwargs),
+        # ExperimentConfigs(model_name='VGGUNet2_5D', force_non_empty=0.5, **common_kwargs),
     ]:
         logging.info(f'#### {exp_config} ####')
         experiment_report = dict(Model_name=str(exp_config), N_slices=exp_config.train_steps * exp_config.batch_size * exp_config.slice_size)
-        for val_set in ['A']:
+        for val_set in ['B']:
             logging.info(f'# Validation set {val_set}')
             exp_config.val_set = val_set
 
@@ -182,5 +186,6 @@ if __name__ == '__main__':
     random.seed(1)
     torch.manual_seed(1)
     # run_single_experiment(f"{outputs_root}/train_dir")
-    run_multiple_experiments(f"{outputs_root}/cluster_training_batch-4-heavyNets")
+    # run_multiple_experiments(f"{outputs_root}/cluster_training_batch-4-heavyNets")
+    run_multiple_experiments(f"{outputs_root}/cluster_training_batch-4")
     # test('/mnt/storage_ssd/train_outputs/cluster_training_compare_losses_with_aug/UNet(p=64,BUS)__Aug_MaskBg_ZNorm_FNE_Loss(0.0Dice+1.0WCE+0.0CE)_V-A', ckpt_name='step-30000')

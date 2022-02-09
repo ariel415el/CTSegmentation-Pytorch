@@ -33,7 +33,7 @@ class SliceVolume(object):
       return a slice of size "slice_size" in the -4 dimension of the sample.
     """
 
-    def __init__(self, slice_size=48, force_non_empty=False):
+    def __init__(self, slice_size=48, force_non_empty=0):
         self.slice_size = slice_size
         self.force_non_empty = force_non_empty
 
@@ -45,7 +45,7 @@ class SliceVolume(object):
             start_slice = np.random.randint(0, image.shape[-3] - self.slice_size)
             end_slice = start_slice + self.slice_size - 1
 
-            if self.force_non_empty and not is_empty and torch.rand(1) < 0.5:
+            if self.force_non_empty > 0 and not is_empty and torch.rand(1) < self.force_non_empty:
                 # sample only non-empty slices
                 while np.all(segmap[..., start_slice:end_slice + 1, :, :] == 0):
                     start_slice = np.random.randint(0, image.shape[-3] - self.slice_size)

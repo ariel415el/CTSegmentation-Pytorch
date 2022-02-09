@@ -19,7 +19,7 @@ class ExperimentConfigs:
     ignore_background: bool = False  # Adds a non-bg mask to the loss to be computed on
     delete_background: bool = False  # Erase all bg voxels
     hist_equalization: bool = False
-    force_non_empty: bool = False  # For volumes with non-bg voxels. train only on non-empty chunks
+    force_non_empty: float = 0  # For volumes with non-bg voxels. train only on non-empty chunks
     batch_size: int = 32
     num_workers: int = 4
 
@@ -60,7 +60,7 @@ class ExperimentConfigs:
                f"{'_ZeroBG' if self.delete_background else ''}" \
                f"{'_MaskBg' if self.ignore_background else ''}" \
                f"{'_HistEq' if self.hist_equalization else ''}" \
-               f"{'_FNE' if self.force_non_empty else ''}" \
+               f"{f'_FNE-{self.force_non_empty:.1f}' if self.force_non_empty else ''}" \
                f"_Loss({self.dice_loss_weight:.1f}Dice+{self.wce_loss_weight:.1f}WCE+{self.ce_loss_weight:.1f}CE)" \
                f"{'_' + self.train_tag if self.train_tag else ''}" \
                f"_V-{self.val_set}"
@@ -93,7 +93,7 @@ class DataConfigs:
     ignore_background: bool
     delete_background: bool
     hist_equalization: bool
-    force_non_empty: bool
+    force_non_empty: float
     batch_size: int
     num_workers: int
 
