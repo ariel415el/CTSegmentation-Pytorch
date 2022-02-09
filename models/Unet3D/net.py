@@ -47,7 +47,7 @@ class Up(nn.Module):
 
         # if bilinear_upsample, use the normal convolutions to reduce the number of channels
         if trilinear_upsample:
-            self.up = nn.Upsample(scale_factor=2, mode='trilinear_upsample', align_corners=True)
+            self.up = nn.Upsample(scale_factor=2, mode='trilinear', align_corners=True)
             self.conv = DoubleConv(in_channels, out_channels, in_channels // 2)
         else:
             self.up = nn.ConvTranspose3d(in_channels, in_channels // 2, kernel_size=2, stride=2)
