@@ -45,7 +45,7 @@ class SliceVolume(object):
             start_slice = np.random.randint(0, image.shape[-3] - self.slice_size)
             end_slice = start_slice + self.slice_size - 1
 
-            if self.force_non_empty and not is_empty:
+            if self.force_non_empty and not is_empty and torch.rand(1) < 0.5:
                 # sample only non-empty slices
                 while np.all(segmap[..., start_slice:end_slice + 1, :, :] == 0):
                     start_slice = np.random.randint(0, image.shape[-3] - self.slice_size)
