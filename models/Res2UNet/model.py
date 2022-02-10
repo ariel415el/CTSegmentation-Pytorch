@@ -6,9 +6,9 @@ from models.generic_model import SegmentationModel, optimizer_to
 
 
 class HeavyUnetModel(SegmentationModel):
-    def __init__(self, n_channels, n_classes, lr, eval_batchsize=1):
+    def __init__(self, n_channels, n_classes, p, lr, eval_batchsize=1):
         super(HeavyUnetModel, self).__init__(n_channels, n_classes)
-        self.net = U_Net(n_channels, n_classes)
+        self.net = U_Net(n_channels, n_classes, p=p)
         self.optimizer = optim.Adam(self.net.parameters(), lr=lr)
         self.eval_batchsize = eval_batchsize
         self.name = f"HeavyUNet"
@@ -71,24 +71,24 @@ class HeavyUnetModel(SegmentationModel):
         optimizer_to(self.optimizer, device)
 
 class ResUnetModel(HeavyUnetModel):
-    def __init__(self, n_channels, n_classes, lr, eval_batchsize=1):
-        super(ResUnetModel, self).__init__(n_channels, n_classes, lr, eval_batchsize=eval_batchsize)
-        self.net = ResU_Net(n_channels, n_classes)
+    def __init__(self, n_channels, n_classes, p, lr, eval_batchsize=1):
+        super(ResUnetModel, self).__init__(n_channels, n_classes, p, lr, eval_batchsize=eval_batchsize)
+        self.net = ResU_Net(n_channels, n_classes, p=p)
         self.optimizer = optim.Adam(self.net.parameters(), lr=lr)
         self.name = f"ResUNet"
 
 
 class RecurrentUnetModel(HeavyUnetModel):
-    def __init__(self, n_channels, n_classes, lr, eval_batchsize=1):
-        super(RecurrentUnetModel, self).__init__(n_channels, n_classes, lr, eval_batchsize=eval_batchsize)
-        self.net = RecU_Net(n_channels, n_classes)
+    def __init__(self, n_channels, n_classes, p, lr, eval_batchsize=1):
+        super(RecurrentUnetModel, self).__init__(n_channels, n_classes, p, lr, eval_batchsize=eval_batchsize)
+        self.net = RecU_Net(n_channels, n_classes, p=p)
         self.optimizer = optim.Adam(self.net.parameters(), lr=lr)
         self.name = f"RecurrentUNet"
 
 
 class Res2UnetModel(HeavyUnetModel):
-    def __init__(self, n_channels, n_classes, lr, eval_batchsize=1):
-        super(Res2UnetModel, self).__init__(n_channels, n_classes, lr, eval_batchsize=eval_batchsize)
-        self.net = R2U_Net(n_channels, n_classes)
+    def __init__(self, n_channels, n_classes, p, lr, eval_batchsize=1):
+        super(Res2UnetModel, self).__init__(n_channels, n_classes, p, lr, eval_batchsize=eval_batchsize)
+        self.net = R2U_Net(n_channels, n_classes, p=p)
         self.optimizer = optim.Adam(self.net.parameters(), lr=lr)
         self.name = f"Res2Unet"

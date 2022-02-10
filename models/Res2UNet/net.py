@@ -93,7 +93,7 @@ class U_Net(nn.Module):
         self.Up2 = up_conv(ch_in=p*2, ch_out=p)
         self.Up_conv2 = conv_block(ch_in=p*2, ch_out=p)
     
-        self.Conv_1x1 = nn.Conv2d(64, n_classes, kernel_size=1, stride=1, padding=0)
+        self.Conv_1x1 = nn.Conv2d(p, n_classes, kernel_size=1, stride=1, padding=0)
     
     
     def forward(self, x):
@@ -277,7 +277,7 @@ class R2U_Net(nn.Module):
         self.Up2 = up_conv(ch_in=p*2, ch_out=p)
         self.Up_RRCNN2 = RRCNN_block(ch_in=p*2, ch_out=p, t=t)
     
-        self.Conv_1x1 = nn.Conv2d(64, n_classes, kernel_size=1, stride=1, padding=0)
+        self.Conv_1x1 = nn.Conv2d(p, n_classes, kernel_size=1, stride=1, padding=0)
     
     def forward(self, x):
         # encoding path
@@ -360,9 +360,9 @@ class RecU_Net(nn.Module):
         self.Up2 = up_conv(ch_in=p*2, ch_out=p)
         self.Up_RCNN2 = RCNN_block(ch_in=p*2, ch_out=p, t=t)
     
-        self.Conv_1x1 = nn.Conv2d(64, n_classes, kernel_size=1, stride=1, padding=0)
+        self.Conv_1x1 = nn.Conv2d(p, n_classes, kernel_size=1, stride=1, padding=0)
     
-    
+
     def forward(self, x):
         # encoding path
         x1 = self.RCNN1(x)
@@ -441,7 +441,7 @@ class ResU_Net(nn.Module):
         self.Up2 = up_conv(ch_in=p*2, ch_out=p)
         self.Up_ResCNN2 = ResCNN_block(ch_in=p*2, ch_out=p)
     
-        self.Conv_1x1 = nn.Conv2d(64, n_classes, kernel_size=1, stride=1, padding=0)
+        self.Conv_1x1 = nn.Conv2d(p, n_classes, kernel_size=1, stride=1, padding=0)
     
     
     def forward(self, x):
@@ -483,14 +483,15 @@ class ResU_Net(nn.Module):
 
 if __name__ == '__main__':
     from time import time
-    for net in [U_Net(1,2), ResU_Net(1,2), RecU_Net(1,2), R2U_Net(1,2)]:
+    p=32
+    for net in [U_Net(1,2, p=p), ResU_Net(1,2, p=p), RecU_Net(1,2, p=p), R2U_Net(1,2, p=p)]:
         nparams = sum(p.numel() for p in net.parameters() if p.requires_grad)
         net.eval()
         start = time()
-        for i in range(10):
+        for i in range(1):
             x1 = torch.zeros((32, 1, 128, 128))
             print(net(x1).shape)
-        print(f"{nparams/1000000:.2f}M params, time: {(time() - start) / 10}")
+        print(f"{nparams/1000000:.2f}M params, time: {(time() - start) / 1}")
 
 
 # 34.53M params, time: 3.

@@ -54,7 +54,6 @@ class SliceVolume(object):
             image = image[..., start_slice:end_slice + 1, :, :]
             segmap = segmap[..., start_slice:end_slice + 1, :, :]
 
-
         return image, segmap
 
 
@@ -69,9 +68,6 @@ def get_transforms(data_config):
     val_transforms = [
         augmentations.random_clip(-100, 400),
     ]
-
-    if data_config.hist_equalization:
-        val_transforms += [augmentations.HistogramEqualization(256)]
 
     val_transforms += [
         Znormalization(),
@@ -88,9 +84,6 @@ def get_transforms(data_config):
             augmentations.RandomCrop(p=0.75),
             augmentations.random_clip((-200, -50), (256, 1024))
         ]
-
-        if data_config.hist_equalization:
-            train_transforms += [augmentations.HistogramEqualization(256)]
 
         train_transforms += [
             Znormalization(),
@@ -151,7 +144,7 @@ class CTDataset(Dataset):
     Dataset of entire CT volumes.
     """
 
-    def __init__(self, data_paths, transforms=None, min_n_slices=None, delete_bakground=False, ignore_background=False):
+    def __init__(self, data_paths, transforms=None, delete_bakground=False, ignore_background=False):
         self.transforms = transforms
         self.delete_bakground = delete_bakground
         self.ignore_background = ignore_background
@@ -159,16 +152,12 @@ class CTDataset(Dataset):
         self.segs = []
         self.case_names = []
         n_slices = []
-        n_dropped_volumes = 0
         for ct_path, seg_path in data_paths:
-            label_map = read_volume(seg_path)
-            if min_n_slices is None or label_map.shape[0] >= min_n_slices:
-                self.segs.append(label_map.astype(np.uint8))
-                self.cts.append(read_volume(ct_path))
-                self.case_names.append(os.path.splitext(os.path.basename(ct_path))[0])
-                n_slices.append(self.cts[-1].shape[-3])
-            else:
-                n_dropped_volumes += 1
+            self.segs.append(read_volume(seg_path).astype(np.uint8))
+            self.cts.append(read_volume(ct_path))
+            self.case_names.append(os.path.splitext(os.path.basename(ct_path))[0])
+            n_slices.append(self.cts[-1].shape[-3])
+
         self.n_slices = np.sum(n_slices)
         logging.info(f"Dataset loaded: {self.n_slices} slices in {len(self.cts)} volumes")
 
@@ -183,6 +172,9 @@ class CTDataset(Dataset):
         # TODO: Note that this is only for 2 classes
         gt = (sample[1] == 2).long()
         mask = (sample[1] != 0)
+
+        # gt = (sample[1] != 0).long()
+        # mask = torch.ones_like(gt).bool()
 
         if self.delete_bakground:
             sample[0][~mask] = (sample[0][~mask]).float().mean().to(dtype=sample[0].dtype)

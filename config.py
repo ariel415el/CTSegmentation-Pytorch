@@ -11,14 +11,13 @@ class ExperimentConfigs:
     starting_lr: float = 0.00001
 
     # data configs
-    data_path = 'datasets/LiTS2017_(MS-(3, 15, 15)_MM-2_Crop-CL-1_margins-(1, 1, 1)_OB-0.5_MD-11)'
+    data_path = 'datasets/LiTS2017_resize05'
     val_set: str = 'A'
     resize: int = 128
     augment_data: bool = False  # Affine, noise, random intencity clipping etc.
     elastic_deformations: bool = True  # applies only if augment_data is True
     ignore_background: bool = False  # Adds a non-bg mask to the loss to be computed on
     delete_background: bool = False  # Erase all bg voxels
-    hist_equalization: bool = False
     force_non_empty: float = 0  # For volumes with non-bg voxels. train only on non-empty chunks
     batch_size: int = 32
     num_workers: int = 4
@@ -41,7 +40,7 @@ class ExperimentConfigs:
 
     def get_data_config(self):
         return DataConfigs(self.data_path, self.val_set, self.resize, self.slice_size, self.augment_data, self.elastic_deformations,
-                           self.ignore_background, self.delete_background, self.hist_equalization,
+                           self.ignore_background, self.delete_background,
                            self.force_non_empty, self.batch_size, self.num_workers)
 
     def get_model_config(self):
@@ -59,7 +58,6 @@ class ExperimentConfigs:
                f"{'_LUS' if self.learnable_upsamples else ''}" \
                f"{'_ZeroBG' if self.delete_background else ''}" \
                f"{'_MaskBg' if self.ignore_background else ''}" \
-               f"{'_HistEq' if self.hist_equalization else ''}" \
                f"{f'_FNE-{self.force_non_empty:.1f}' if self.force_non_empty else ''}" \
                f"_Loss({self.dice_loss_weight:.1f}Dice+{self.wce_loss_weight:.1f}WCE+{self.ce_loss_weight:.1f}CE)" \
                f"{'_' + self.train_tag if self.train_tag else ''}" \
@@ -92,7 +90,6 @@ class DataConfigs:
     elastic_deformations: bool
     ignore_background: bool
     delete_background: bool
-    hist_equalization: bool
     force_non_empty: float
     batch_size: int
     num_workers: int
