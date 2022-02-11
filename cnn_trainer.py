@@ -12,6 +12,10 @@ from evaluate import evaluate
 from config import *
 from metrics import VolumeLoss
 
+TRAIN_LOSS_TAG = 'Train-Loss'
+VALIDATION_LOSS_TAG = 'Val-Loss'
+VALIDATION_SCORE_TAG = 'Dice-class-1'
+
 
 def iterate_dataloader(dataloader):
     """
@@ -54,19 +58,19 @@ class CNNTrainer:
 
             loss = model.train_one_sample(ct_volume, gt_volume, mask_volume, self.volume_crieteria)
 
-            self.register_plot_data({'train-loss': loss})
+            self.register_plot_data({TRAIN_LOSS_TAG: loss})
             self.pbar.update(ct_volume.shape[0] * ct_volume.shape[-3])
             self.pbar.set_description(f"Train-step: {self.step}/{self.config.train_steps}, lr: {model.optimizer.param_groups[0]['lr']:.10f}")
 
             # Evaluation
             if self.step % self.config.eval_freq == 0:
                 validation_report = evaluate(model, val_loader, self.config.device, self.volume_crieteria)
-                validation_report['val-loss'] = validation_report.pop('Loss')
+                validation_report[VALIDATION_LOSS_TAG] = validation_report.pop('Loss')
                 self.register_plot_data(validation_report)
                 self.plot()
 
                 self.save_checkpoint(model, name='latest')
-                if self.is_last_smoothed_score_best('Dice-class-1'):
+                if self.is_last_smoothed_score_best(VALIDATION_SCORE_TAG):
                     self.save_checkpoint(model, name='best')
 
             if self.step % self.config.ckpt_frequency == 0:
@@ -98,7 +102,7 @@ class CNNTrainer:
             self.plot_data_means[k].append(np.mean(self.plot_data[k][-self.smooth_score_size:]))
 
     def plot(self):
-        metric_groups = [['train-loss', 'val-loss'], ['Dice-class-1']]
+        metric_groups = [[TRAIN_LOSS_TAG, VALIDATION_LOSS_TAG], [VALIDATION_SCORE_TAG]]
         for metric_group in metric_groups:
             nvalues = max([len(self.plot_data[k]) for k in metric_group])
             for k in metric_group:

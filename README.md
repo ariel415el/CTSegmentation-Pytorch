@@ -35,3 +35,4 @@ I consoluted the follwing repos:
 - https://github.com/mattmacy/vnet.pytorch
 - https://github.com/assassint2017/MICCAI-LITS2017
 - https://github.com/nexus-kgp/adseg
+- https://github.com/navamikairanda/R2U-Net
