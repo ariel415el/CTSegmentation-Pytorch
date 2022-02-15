@@ -131,7 +131,10 @@ def run_on_validation_set(data_root, test_cases, t, out_dir=None):
 
 if __name__ == '__main__':
     data_path = '/home/ariel/projects/MedicalImageSegmentation/data/LiverTumorSegmentation/train'
+    # data_path = 'datasets/LiTS2017_LiverCrop_2mm'
 
     # Run full test
-    test_cases = [19, 76, 50, 92, 88, 122, 100, 71, 23, 28, 9, 119, 39]
-    run_on_validation_set(data_path, test_cases, t=120, out_dir="debug_test")
+    # test_cases = [19, 76, 50, 92, 88, 122, 100, 71, 23, 28, 9, 119, 39]
+    # test_cases = [101, 99, 112, 107, 24, 34, 30, 120, 90, 98, 118, 83, 0]
+    test_cases = [97, 5, 17, 41, 105, 57, 15, 110, 93, 106, 32, 124, 68]
+    run_on_validation_set(data_path, test_cases, t=60, out_dir="debug_test")

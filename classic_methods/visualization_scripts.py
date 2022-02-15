@@ -121,7 +121,7 @@ if __name__ == '__main__':
     produce_hists(data_path, [19, 50, 92, 23, 28])
 
     # Analyze specific slices
-    for case, axis_slice in [(76, 133), (109, 449), (129, 139)]:
+    for case, axis_slice in [(76, 133), (109, 449), (129, 139), (44,52)]:
         analyze_prediction_process(data_path, case=case, axis_slice=axis_slice, t=120, output_dir="debug_slices")
 
     # Analyze entire cases
