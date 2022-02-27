@@ -1,9 +1,10 @@
 import os
 
 import torch
+import torchvision.transforms
 from torch.utils.data import DataLoader
 from datasets.augmentations import *
-from datasets.ct_dataset import CTDataset, get_data_pathes
+from datasets.ct_dataset import CTDataset, get_data_pathes, Znormalization
 from datasets.ct_dataset import ToTensor
 from torchvision.utils import save_image
 from torchvision import transforms as tv_transforms
@@ -131,19 +132,28 @@ def visualize_dataset(dataloader, output_dir):
 if __name__ == '__main__':
     # visualize original data and its preprocessing
     # original_data_path = '/home/ariel/projects/MedicalImageSegmentation/data/LiverTumorSegmentation/train'
-    # data_paths = get_data_pathes(original_data_path)
-    # sorted(data_paths)
-    # data_paths = data_paths[12:13]
+    original_data_path = 'LiTS2017C-(3, 10, 10)'
+    data_paths = get_data_pathes(original_data_path)
+    sorted(data_paths)
+    data_paths = [x for x in data_paths if "46" in x[0]]
 
-    # dataloader = DataLoader(CTDataset(data_paths, transforms=ToTensor()))
-    # visualize_dataset(dataloader, os.path.join(original_data_path, "visualize_data"))
-
+    dataloader = DataLoader(CTDataset(data_paths, transforms=torchvision.transforms.Compose([random_clip(-100, 400), ToTensor()])))
+    visualize_dataset(dataloader, os.path.join(original_data_path, "visualize_data"))
+    exit()
     # visualize_preprocessing_affects(dataloader, os.path.join(original_data_path, "visualize_preprocessing"))
 
-    # # Viuslize dataset
-    data_path = 'datasets/LiTS2017_(MS-(3, 15, 15)_MM-2_Crop-CL-1_margins-(1, 1, 1)_OB-0.5_MD-11)'
-    data_paths = get_data_pathes(data_path)
-    sorted(data_paths)
-    data_paths = data_paths[50:55]
+    # # # Viuslize dataset
+    # data_path = '/mnt/storage_ssd/train_outputs/cluster_LiverTraining/VGGUNet_Aug_Loss(0.0Dice+0.0WCE+1.0CE)_V-A'
+    # data_paths = get_data_pathes(data_path)
+    # sorted(data_paths)
+    # data_paths = data_paths
+    # #
+    # dataloader = DataLoader(CTDataset(data_paths, transforms=ToTensor()))
+    # visualize_dataset(dataloader, os.path.join(data_path, "visualize_data"))
     #
-    visualize_augmentations(data_paths, os.path.join(data_path, "visualize_augmentations"))
+    # visualize_augmentations(data_paths, os.path.join(data_path, "visualize_augmentations"))
+    #
+    # import torchio as tio
+    # path = '/home/ariel/projects/MedicalImageSegmentation/data/LiverTumorSegmentation/test/ct/test-volume-4.nii'
+    # x = tio.ScalarImage(path)
+    # x = tio.Clamp(-100,400)(x).plot(axis=False)

@@ -14,9 +14,11 @@ from datasets.data_utils import get_data_pathes, read_volume
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 
-LITS2017_VALSETS = {'A': [19, 76, 50, 92, 88, 122, 100, 71, 23, 28, 9, 119, 39],
-                    'B': [101, 99, 112, 107, 24, 34, 30, 120, 90, 98, 118, 83, 0],
-                    'C': [97, 5, 17, 41, 105, 57, 15, 110, 93, 106, 32, 124, 68]}
+# NO_TUMOR_CTS = [87, 47, 105, 106, 119, 114, 41, 38, 34, 115, 91, 32, 89]
+
+LITS2017_VALSETS = {'A': [19, 76, 50, 92, 88, 122, 100, 71, 23, 28, 9, 119, 39],  # n_empty: 1
+                    'B': [101, 99, 112, 107, 24, 34, 30, 120, 90, 98, 118, 83, 0],  # n_empty: 1
+                    'C': [97, 5, 17, 41, 105, 57, 15, 110, 93, 106, 32, 124, 68]}  # n_empty: 4
 
 
 class ToTensor(object):
@@ -24,7 +26,7 @@ class ToTensor(object):
 
     def __call__(self, sample):
         image, segmap = sample
-        image, segmap = torch.from_numpy(image), torch.from_numpy(segmap)
+        image, segmap = torch.from_numpy(image), torch.from_numpy(segmap.astype(np.uint8))
         return image, segmap
 
 
@@ -112,7 +114,7 @@ def get_datasets(data_config):
     for ct_path, gt_path in data_paths:
         is_train = True
         for case_num in LITS2017_VALSETS[data_config.val_set]:
-            if f"volume-{case_num}-" in ct_path:
+            if f"volume-{case_num}" in ct_path:
                 is_train = False
                 break
         if is_train:
@@ -170,11 +172,14 @@ class CTDataset(Dataset):
             sample = self.transforms(sample)
 
         # TODO: Note that this is only for 2 classes
-        gt = (sample[1] == 2).long()
-        mask = (sample[1] != 0)
+        # gt = (sample[1] == 2).long()
+        # mask = (sample[1] != 0)
 
         # gt = (sample[1] != 0).long()
         # mask = torch.ones_like(gt).bool()
+
+        gt = sample[1]
+        mask = torch.ones_like(gt).bool()
 
         if self.delete_bakground:
             sample[0][~mask] = (sample[0][~mask]).float().mean().to(dtype=sample[0].dtype)
@@ -182,3 +187,16 @@ class CTDataset(Dataset):
             mask = torch.ones_like(mask).bool()
 
         return {'ct':  sample[0], "gt":  gt, 'mask': mask, 'case_name': self.case_names[i]}
+
+
+if __name__ == '__main__':
+    seg_dir = '/home/ariel/projects/MedicalImageSegmentation/data/LiverTumorSegmentation/train/seg'
+    import os
+    for fname in os.listdir(seg_dir):
+        x = read_volume(os.path.join(seg_dir, fname))
+        if not np.any(x == 2):
+            print(fname)
+
+
+
+
