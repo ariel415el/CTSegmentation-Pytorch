@@ -18,7 +18,8 @@ class DoubleConv(nn.Module):
             nn.ReLU(inplace=True),
             nn.Conv2d(mid_channels, out_channels, kernel_size=3, padding=1, bias=bias),
             nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace=True)
+            nn.ReLU(inplace=True),
+            nn.Dropout2d(0.1)
         )
 
     def forward(self, x):
@@ -32,8 +33,8 @@ class Down(nn.Module):
         super().__init__()
         self.maxpool_conv = nn.Sequential(
             nn.MaxPool2d(2),
-            DoubleConv(in_channels, out_channels, bias=bias)
-        )
+            DoubleConv(in_channels, out_channels, bias=bias),
+            )
 
     def forward(self, x):
         return self.maxpool_conv(x)
@@ -87,6 +88,7 @@ class UNet(nn.Module):
         self.down1 = Down(p, p*2, bias)
         self.down2 = Down(p*2, p*4, bias)
         self.down3 = Down(p*4, p*8, bias)
+        self.dropout = nn.Dropout2d()
 
         factor = 2 if bilinear_upsample else 1
         self.down4 = Down(p*8, p*16 // factor, bias)

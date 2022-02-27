@@ -92,14 +92,13 @@ def run_multiple_experiments(outputs_dir):
     logging.basicConfig(filename=os.path.join(outputs_dir, 'log-file.log'), format='%(asctime)s:%(message)s', level=logging.INFO, datefmt='%m-%d %H:%M:%S')
 
     full_report = pd.DataFrame()
-    common_kwargs = dict(starting_lr=0.00001, num_workers=4, train_steps=30000,
-                         augment_data=True, elastic_deformations=False,
-                         dice_loss_weight=0, wce_loss_weight=0, ce_loss_weight=1)
+    common_kwargs = dict(starting_lr=0.00001, num_workers=4, val_set='A', train_steps=100000,
+                      dice_loss_weight=0, wce_loss_weight=0, ce_loss_weight=1,
+                      augment_data=True, elastic_deformations=False, force_non_empty=0.5)
     for exp_config in [
-        ExperimentConfigs(model_name='VGGUNet', **common_kwargs, val_set='A', resize=128, batch_size=32),
-        ExperimentConfigs(model_name='VGGUNet', **common_kwargs, val_set='A', resize=256, batch_size=4),
-        ExperimentConfigs(model_name='VGGUNet2_5D', **common_kwargs, val_set='A', slice_size=3, batch_size=32),
-
+        ExperimentConfigs(model_name='VGGUNet', **common_kwargs, resize=200, slice_size=1, batch_size=16),
+        ExperimentConfigs(model_name='VGGUNet2_5D', **common_kwargs, resize=200, slice_size=3, batch_size=16),
+        ExperimentConfigs(model_name='UNet3D', **common_kwargs, resize=128, slice_size=32, batch_size=2),
     ]:
         logging.info(f'#### {exp_config} ####')
 
@@ -117,7 +116,5 @@ if __name__ == '__main__':
     outputs_root = '/mnt/storage_ssd/train_outputs'
     random.seed(1)
     torch.manual_seed(1)
-    # run_single_experiment(f"{outputs_root}/train_dir_liver")
-    # run_multiple_experiments(f"{outputs_root}/cluster_LiverTraining")
-    test('/home/ariel/projects/MedicalImageSegmentation/AWS_scripts/dir_dir/cluster_batch-3-C/VGGUNet2_5D_Aug_Elastic_MaskBg_FNE-1.0_Loss(0.0Dice+0.0WCE+1.0CE)_V-C', 'best')
-    # run_multiple_experiments(f"{outputs_root}/cluster_training_batch-4")
+    run_multiple_experiments(f"{outputs_root}/multiclass_batch5_no_resampling")
+    # test('/mnt/storage_ssd/train_outputs/multiclass_batch5_no_resampling/VGGUNet2_5D_Aug_FNE-0.5_Loss(0.0Dice+0.0WCE+1.0CE)_V-A' , 'best')

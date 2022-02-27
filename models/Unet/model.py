@@ -8,7 +8,7 @@ class UnetModel(SegmentationModel):
     def __init__(self, n_channels, n_classes, p, lr, bilinear_upsample=True, bias=False, eval_batchsize=1):
         super(UnetModel, self).__init__(n_channels, n_classes)
         self.net = UNet(n_channels, n_classes, p, bilinear_upsample=bilinear_upsample, bias=bias)
-        self.optimizer = optim.Adam(self.net.parameters(), lr=lr)
+        self.optimizer = optim.Adam(self.net.parameters(), lr=lr, weight_decay=0)
         self.eval_batchsize = eval_batchsize
         self.name = f"UNet(p={p}" + (',BUS' if bilinear_upsample else '') + (',bias' if bias else '') + ")"
 

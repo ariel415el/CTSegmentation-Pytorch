@@ -102,7 +102,7 @@ class CNNTrainer:
             self.plot_data_means[k].append(np.mean(self.plot_data[k][-self.smooth_score_size:]))
 
     def plot(self):
-        metric_groups = [[TRAIN_LOSS_TAG, VALIDATION_LOSS_TAG], [VALIDATION_SCORE_TAG]]
+        metric_groups = [[TRAIN_LOSS_TAG, VALIDATION_LOSS_TAG], [VALIDATION_SCORE_TAG, 'Dice-class-2']]
         for metric_group in metric_groups:
             nvalues = max([len(self.plot_data[k]) for k in metric_group])
             for k in metric_group:

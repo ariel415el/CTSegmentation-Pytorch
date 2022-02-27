@@ -6,12 +6,12 @@ import torch
 class ExperimentConfigs:
     # model configs
     model_name: str = 'VGGUNet'
-    n_classes: int = 2
+    n_classes: int = 3
     learnable_upsamples: bool = False
     starting_lr: float = 0.00001
 
     # data configs
-    data_path = 'datasets/LiTS2017_resize05'
+    data_path = 'datasets/LiTS2017C-(3, 10, 10)'
     val_set: str = 'A'
     resize: int = 128
     augment_data: bool = False  # Affine, noise, random intencity clipping etc.
