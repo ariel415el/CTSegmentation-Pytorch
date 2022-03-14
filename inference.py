@@ -15,7 +15,7 @@ from datasets.ct_dataset import get_transforms, LITS2017_VALSETS
 from datasets.visualize_data import write_volume_slices
 from models import get_model
 from torchvision.transforms import Resize
-from metrics import TverskyScore
+from metrics import TverskyScore, compute_Recal
 
 
 def get_model_from_dir(model_dir, ckpt_name):
@@ -104,35 +104,29 @@ class OneStepsSegmentor:
         return multiclass_mask
 
 
-def inference(two_steps=False):
+def inference(two_steps=False, normalized_mms=None, liver_crop_padding=(3, 20,20)):
     with torch.no_grad():
-        # normalized_mms = 2
-        normalized_mms = None
-        crop_padding = (3, 10, 10)
+        
         outputs_dir = os.path.join(os.path.dirname(ct_path), 'outputs_' + ("two_steps" if two_steps else "three_steps"))
         os.makedirs(outputs_dir, exist_ok=True)
 
-        liver_localization_model_dir = '/mnt/storage_ssd/train_outputs/liver_batch1/VGGUNet_Aug_Loss(0.0Dice+0.0WCE+1.0CE)_V-A'
-        liver_localization_model, liver_localization_cfg = get_model_from_dir(liver_localization_model_dir, 'step-30000')
+        liver_localization_model_dir = 'trained_models/liver_localization/VGGUNet_Aug_Loss(0.0Dice+0.0WCE+1.0CE)_V-A'
+        liver_localization_model, liver_localization_cfg = get_model_from_dir(liver_localization_model_dir, 'best')
         _, liver_localization_transforms = get_transforms(liver_localization_cfg.get_data_config())
         if two_steps:
-            # multiclass_model_dir = '/mnt/storage_ssd/train_outputs/Best_models/UNet3D_Aug_Elastic_FNE-0.5_Loss(0.0Dice+0.0WCE+1.0CE)_V-A_multiclass'
-            multiclass_model_dir = '/mnt/storage_ssd/train_outputs/multiclass_batch5_no_resampling/VGGUNet2_5D_Aug_FNE-0.5_Loss(0.0Dice+0.0WCE+1.0CE)_V-A'
+            multiclass_model_dir = 'trained_models/multiclass_segmentaion/VGGUNet2_5D_Aug_FNE-0.5_Loss(0.0Dice+0.0WCE+1.0CE)_V-A'
             segmentor = OneStepsSegmentor(multiclass_model_dir)
 
         else:
-            liver_segmentation_model_dir = '/mnt/storage_ssd/train_outputs/liver_batch_cropped/VGGUNet_Aug_FNE-0.5_Loss(0.0Dice+0.0WCE+1.0CE)_V-A'
-            tumor_model_dir = '/mnt/storage_ssd/train_outputs/Best_models/UNet3D_Aug_Elastic_MaskBg_FNE-0.5_Loss(1.0Dice+0.0WCE+1.0CE)_V-A'
+            liver_segmentation_model_dir = 'trained_models/liver_segmentation/VGGUNet_Aug_FNE-0.5_Loss(1.0Dice+0.0WCE+1.0CE)_V-A'
+            tumor_model_dir = 'trained_models/tumor_segmentation/UNet3D_Aug_Elastic_MaskBg_FNE-0.5_Loss(1.0Dice+0.0WCE+1.0CE)_V-A'
             segmentor = TwoStepsSegmentor(liver_segmentation_model_dir, tumor_model_dir)
 
-        liver_scores = []
-        tumor_scores = []
-        # for i in LITS2017_VALSETS['A']:
-        #     fname = f'volume-{i}.nii'
-        for i in range(70):
-            fname = f'test-volume-{i}.nii'
-        # for i in range(1,4):
-        #     fname = f'volume-{i}.nii'
+        liver_dice_scores = []
+        tumor_dice_scores = []
+        tumor_recalls = []
+        for fname in os.listdir(ct_path)[:3]:
+            print(f"Case-{fname}")
             ct_volume, gt_volume, spacing = read_case(ct_path, gt_path, fname)
             # gt_volume[gt_volume == 1] = 2
 
@@ -146,7 +140,7 @@ def inference(two_steps=False):
 
             # Crop around liver for tumor segmentaiton                                                                           # shape (S, h, w)
             nwhere = np.where(predicted_liver_mask)
-            liver_crop = tuple([slice(max(0, x.min() - crop_padding[i]), x.max() + crop_padding[i]) for i, x in enumerate(nwhere)])
+            liver_crop = tuple([slice(max(0, x.min() - liver_crop_padding[i]), x.max() + liver_crop_padding[i]) for i, x in enumerate(nwhere)])
             cropped_ct = ct_volume[liver_crop]                                                                                      # shape (S, h, w)
 
             if normalized_mms is not None:
@@ -164,32 +158,30 @@ def inference(two_steps=False):
             # write segmentation map
             new_seg = sitk.GetImageFromArray(final_mask, sitk.sitkInt8)
             new_seg.SetSpacing(spacing)
-            sitk.WriteImage(new_seg, os.path.join(outputs_dir, f'test-segmentation-{i}.nii'))
+            sitk.WriteImage(new_seg, os.path.join(outputs_dir, fname.replace('volume', 'segmentation')))
 
             # # Compute dice
             if gt_volume is not None:
                 gt_volume = torch.from_numpy(gt_volume)
                 liver_score = TverskyScore(0.5,0.5)((final_mask != 0).long().unsqueeze(0), (gt_volume != 0).long().unsqueeze(0), torch.ones_like(gt_volume).unsqueeze(0))
                 tumor_score = TverskyScore(0.5,0.5)((final_mask == 2).long().unsqueeze(0), (gt_volume == 2).long().unsqueeze(0), torch.ones_like(gt_volume).unsqueeze(0))
-                liver_scores.append(liver_score)
-                tumor_scores.append(tumor_score)
+                tumor_recall = compute_Recal((final_mask == 2).long().unsqueeze(0), (gt_volume == 2).long().unsqueeze(0), torch.ones_like(gt_volume).unsqueeze(0))
+                liver_dice_scores.append(liver_score)
+                tumor_dice_scores.append(tumor_score)
+                tumor_recalls.append(tumor_recall)
 
                 # dump debug images
                 ct_volume = torch.from_numpy(np.clip(ct_volume, -100, 400).astype(float))
-                write_volume_slices(ct_volume[liver_crop], [final_mask[liver_crop], gt_volume[liver_crop]], os.path.join(outputs_dir, "e2e_test", f"{os.path.splitext(fname)[0]}_{liver_score.item():.2f}_{tumor_score.item():.2f}"))
-                # write_volume_slices(ct_volume, [final_mask, gt_volume], os.path.join(outputs_dir, "e2e_test", f"{os.path.splitext(fname)[0]}_{liver_score.item():.2f}_{tumor_score.item():.2f}"))
+                write_volume_slices(ct_volume, [final_mask, gt_volume], os.path.join(outputs_dir, "e2e_test", f"{os.path.splitext(fname)[0]}_{liver_score.item():.2f}_{tumor_score.item():.2f}"))
 
-        print(f"AVG Dice per case: Liver: {np.mean(liver_scores)}, Tumor: {np.mean(tumor_scores)}")
+        print(f"AVG Dice per case: Liver: {np.mean(liver_dice_scores)}, Tumor: {np.mean(tumor_dice_scores)}, Tumor-Recall: {np.mean(tumor_recalls)}")
 
 
 
 if __name__ == '__main__':
-    # ct_path = '/home/ariel/projects/MedicalImageSegmentation/data/LiverTumorSegmentation/train/ct'
-    # gt_path = '/home/ariel/projects/MedicalImageSegmentation/data/LiverTumorSegmentation/train/seg'
-    ct_path = '/home/ariel/projects/MedicalImageSegmentation/data/LiverTumorSegmentation/test/ct'
-    gt_path = '/home/ariel/projects/MedicalImageSegmentation/data/LiverTumorSegmentation/test/seg'
-    # ct_path = '/home/ariel/projects/MedicalImageSegmentation/data/test_uth/ct'
-    # gt_path = '/home/ariel/projects/MedicalImageSegmentation/data/test_uth/seg'
-    # debug()
+    ct_path = '/home/ariel/projects/MedicalImageSegmentation/data/LiverTumorSegmentation/train/ct'
+    gt_path = '/home/ariel/projects/MedicalImageSegmentation/data/LiverTumorSegmentation/train/seg'
+    # ct_path = '/home/ariel/projects/MedicalImageSegmentation/data/LiverTumorSegmentation/test/ct'
+    # gt_path = '/home/ariel/projects/MedicalImageSegmentation/data/LiverTumorSegmentation/test/seg'
     # inference(two_steps=False)
     inference(two_steps=True)

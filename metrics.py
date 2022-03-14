@@ -53,6 +53,24 @@ def compute_IOU(pred_mat, gt_map, mask):
 
     return results
 
+def compute_Recal(pred_mat, gt_map, mask):
+    """
+    :param pred_mat: a matrix of shape (b, slices, H, W) with values in [0,1]
+    :param gt_map: matrix of shape (b, slices, H, W) with values in [0,1]
+    :param mask: boolean matrix of shape (b, slices, H, W)
+    :return: scores array of size b
+    """
+    pred_mat *= mask
+    gt_map *= mask
+
+    tp = (pred_mat * gt_map).sum([1,2,3])
+    T = (gt_map).sum([1,2,3])
+    results = tp / T
+    results[T == 0] = 1
+
+    return results
+
+
 
 def per_class_score(score_func, pred_volume, segmentation_volume, mask_volume=None):
     """
