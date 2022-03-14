@@ -1,9 +1,10 @@
+import argparse
 import os
 import numpy as np
 from scipy import ndimage
 from tqdm import tqdm
 import SimpleITK as sitk
-
+import sys
 
 def get_LiTS2017_paths(data_root):
     ct_files = sorted(os.listdir(os.path.join(data_root, 'ct')))
@@ -33,7 +34,9 @@ def create_dataset(data_paths, crop_padding=(3,10,10), normalize_axial_mm=None, 
     #### param: slice_size_mm: down/up sample in z dimension to normalize the real world size between CT slices to number of mm
 
     """
-    processed_dir = f"LiTS2017" + (f"C-{crop_padding}" if crop_padding is not None else "") + (f"{normalize_axial_mm}-mm" if normalize_axial_mm is not None else "")
+    processed_dir = f"LiTS2017" + (f"_C-{crop_padding}" if crop_padding is not None else "") + \
+                    (f"_{normalize_axial_mm}-mm" if normalize_axial_mm is not None else "") +\
+                    (f"_Resize-{spatal_resize}" if spatal_resize != 1.0 else "")
 
     new_ct_dir = os.path.join(processed_dir, 'ct')
     new_seg_dir = os.path.join(processed_dir, 'seg')
@@ -52,7 +55,6 @@ def create_dataset(data_paths, crop_padding=(3,10,10), normalize_axial_mm=None, 
         if crop_padding is not None:
             # Crop around liver for tumor segmentaiton
             nwhere = np.where(seg_array != 0)
-            print(nwhere)
             liver_crop = tuple([slice(max(0, x.min() - crop_padding[i]), x.max() + crop_padding[i]) for i, x in enumerate(nwhere)])
             ct_array = ct_array[liver_crop]
             seg_array = seg_array[liver_crop]
@@ -83,5 +85,14 @@ def create_dataset(data_paths, crop_padding=(3,10,10), normalize_axial_mm=None, 
 
 
 if __name__ == '__main__':
-    data_paths = get_LiTS2017_paths('/home/ariel/projects/MedicalImageSegmentation/data/LiverTumorSegmentation/train')
+    parser = argparse.ArgumentParser(description='Preprocess Lits2017 dataset')
+    parser.add_argument('lits_train_root')
+    args = parser.parse_args()
+
+    data_paths = get_LiTS2017_paths(args.lits_train_root)
+
+    # # Create a resize replica of the dataset
+    create_dataset(data_paths, crop_padding=None, spatal_resize=0.5)
+
+    # Create a dataset croped around the liver
     create_dataset(data_paths, crop_padding=(3,10,10))

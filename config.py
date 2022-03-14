@@ -6,12 +6,12 @@ import torch
 class ExperimentConfigs:
     # model configs
     model_name: str = 'VGGUNet'
-    n_classes: int = 3
     learnable_upsamples: bool = False
     starting_lr: float = 0.00001
 
     # data configs
-    data_path = 'datasets/LiTS2017C-(3, 10, 10)'
+    data_path: str = 'datasets/LiTS2017C-(3, 10, 10)'
+    data_mode: str = 'multiclass' # choose between 'tumor'/'liver'/'multiclass'
     val_set: str = 'A'
     resize: int = 128
     augment_data: bool = False  # Affine, noise, random intencity clipping etc.
@@ -38,8 +38,14 @@ class ExperimentConfigs:
 
     train_tag: str = ""
 
+    def __post_init__(self):
+        if self.data_mode in ['tumor', 'liver']:
+            self.n_classes = 2
+        else:
+            self.n_classes = 3
+
     def get_data_config(self):
-        return DataConfigs(self.data_path, self.val_set, self.resize, self.slice_size, self.augment_data, self.elastic_deformations,
+        return DataConfigs(self.data_path, self.data_mode, self.val_set, self.resize, self.slice_size, self.augment_data, self.elastic_deformations,
                            self.ignore_background, self.delete_background,
                            self.force_non_empty, self.batch_size, self.num_workers)
 
@@ -83,6 +89,7 @@ class ModelConfigs:
 @dataclass
 class DataConfigs:
     data_path: str
+    data_mode: str
     val_set: str
     resize: int
     slice_size: int

@@ -1,3 +1,4 @@
+import argparse
 import json
 import os
 
@@ -104,28 +105,21 @@ class OneStepsSegmentor:
         return multiclass_mask
 
 
-def inference(two_steps=False, normalized_mms=None, liver_crop_padding=(3, 20,20)):
+def inference(ct_path, gt_path, liver_localization_model_dir, multiclass_segmentation_model_dir,  normalized_mms=None, liver_crop_padding=(3, 20,20)):
     with torch.no_grad():
         
-        outputs_dir = os.path.join(os.path.dirname(ct_path), 'outputs_' + ("two_steps" if two_steps else "three_steps"))
+        outputs_dir = os.path.join(os.path.dirname(ct_path), 'end2end_prediction')
         os.makedirs(outputs_dir, exist_ok=True)
 
-        liver_localization_model_dir = 'trained_models/liver_localization/VGGUNet_Aug_Loss(0.0Dice+0.0WCE+1.0CE)_V-A'
         liver_localization_model, liver_localization_cfg = get_model_from_dir(liver_localization_model_dir, 'best')
         _, liver_localization_transforms = get_transforms(liver_localization_cfg.get_data_config())
-        if two_steps:
-            multiclass_model_dir = 'trained_models/multiclass_segmentaion/VGGUNet2_5D_Aug_FNE-0.5_Loss(0.0Dice+0.0WCE+1.0CE)_V-A'
-            segmentor = OneStepsSegmentor(multiclass_model_dir)
 
-        else:
-            liver_segmentation_model_dir = 'trained_models/liver_segmentation/VGGUNet_Aug_FNE-0.5_Loss(1.0Dice+0.0WCE+1.0CE)_V-A'
-            tumor_model_dir = 'trained_models/tumor_segmentation/UNet3D_Aug_Elastic_MaskBg_FNE-0.5_Loss(1.0Dice+0.0WCE+1.0CE)_V-A'
-            segmentor = TwoStepsSegmentor(liver_segmentation_model_dir, tumor_model_dir)
+        segmentor = OneStepsSegmentor(multiclass_segmentation_model_dir)
 
         liver_dice_scores = []
         tumor_dice_scores = []
         tumor_recalls = []
-        for fname in os.listdir(ct_path)[:3]:
+        for fname in os.listdir(ct_path):
             print(f"Case-{fname}")
             ct_volume, gt_volume, spacing = read_case(ct_path, gt_path, fname)
             # gt_volume[gt_volume == 1] = 2
@@ -174,14 +168,16 @@ def inference(two_steps=False, normalized_mms=None, liver_crop_padding=(3, 20,20
                 ct_volume = torch.from_numpy(np.clip(ct_volume, -100, 400).astype(float))
                 write_volume_slices(ct_volume, [final_mask, gt_volume], os.path.join(outputs_dir, "e2e_test", f"{os.path.splitext(fname)[0]}_{liver_score.item():.2f}_{tumor_score.item():.2f}"))
 
-        print(f"AVG Dice per case: Liver: {np.mean(liver_dice_scores)}, Tumor: {np.mean(tumor_dice_scores)}, Tumor-Recall: {np.mean(tumor_recalls)}")
+                print(f"AVG Dice per case: Liver: {np.mean(liver_dice_scores)}, Tumor: {np.mean(tumor_dice_scores)}, Tumor-Recall: {np.mean(tumor_recalls)}")
 
 
 
 if __name__ == '__main__':
-    ct_path = '/home/ariel/projects/MedicalImageSegmentation/data/LiverTumorSegmentation/train/ct'
-    gt_path = '/home/ariel/projects/MedicalImageSegmentation/data/LiverTumorSegmentation/train/seg'
-    # ct_path = '/home/ariel/projects/MedicalImageSegmentation/data/LiverTumorSegmentation/test/ct'
-    # gt_path = '/home/ariel/projects/MedicalImageSegmentation/data/LiverTumorSegmentation/test/seg'
-    # inference(two_steps=False)
-    inference(two_steps=True)
+    parser = argparse.ArgumentParser(description='Preprocess Lits2017 dataset')
+    parser.add_argument('ct_dir')
+    parser.add_argument('--gt_dir', default="", help='If GT is not specified no Dice score is computed')
+    parser.add_argument('--localization_model_dir', default='trained_models/liver_localization/VGGUNet_Aug_Loss(0.0Dice+0.0WCE+1.0CE)_V-A')
+    parser.add_argument('--segmentation_model_dir', default='trained_models/multiclass_segmentaion/VGGUNet2_5D_Aug_FNE-0.5_Loss(0.0Dice+0.0WCE+1.0CE)_V-A')
+    args = parser.parse_args()
+
+    inference(args.ct_dir, args.gt_dir, args.localization_model_dir, args.segmentation_model_dir)

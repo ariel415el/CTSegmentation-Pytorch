@@ -123,8 +123,8 @@ def get_datasets(data_config):
             val_paths.append((ct_path, gt_path))
 
     train_transforms, val_transforms = get_transforms(data_config)
-    tarin_set = CTDataset(train_paths, transforms=train_transforms, delete_bakground=data_config.delete_background, ignore_background=data_config.ignore_background)
-    val_set = CTDataset(val_paths, transforms=val_transforms, delete_bakground=data_config.delete_background, ignore_background=data_config.ignore_background)
+    tarin_set = CTDataset(train_paths, data_mode=data_config.data_mode,  transforms=train_transforms, delete_bakground=data_config.delete_background, ignore_background=data_config.ignore_background)
+    val_set = CTDataset(val_paths, data_mode=data_config.data_mode, transforms=val_transforms, delete_bakground=data_config.delete_background, ignore_background=data_config.ignore_background)
 
     return tarin_set, val_set
 
@@ -146,7 +146,8 @@ class CTDataset(Dataset):
     Dataset of entire CT volumes.
     """
 
-    def __init__(self, data_paths, transforms=None, delete_bakground=False, ignore_background=False):
+    def __init__(self, data_paths, data_mode, transforms=None, delete_bakground=False, ignore_background=False):
+        self.data_mode = data_mode
         self.transforms = transforms
         self.delete_bakground = delete_bakground
         self.ignore_background = ignore_background
@@ -171,15 +172,17 @@ class CTDataset(Dataset):
         if self.transforms:
             sample = self.transforms(sample)
 
-        # TODO: Note that this is only for 2 classes
-        # gt = (sample[1] == 2).long()
-        # mask = (sample[1] != 0)
-
-        # gt = (sample[1] != 0).long()
-        # mask = torch.ones_like(gt).bool()
-
-        gt = sample[1]
-        mask = torch.ones_like(gt).bool()
+        if self.data_mode == 'tumor':
+            gt = (sample[1] == 2).long()
+            mask = (sample[1] != 0)
+        elif self.data_mode == 'liver':
+            gt = (sample[1] != 0).long()
+            mask = torch.ones_like(gt).bool()
+        elif self.data_mode == 'multiclass':
+            gt = sample[1]
+            mask = torch.ones_like(gt).bool()
+        else:
+            raise ValueError("No such data mode: choose between 'tumor'/'liver'/'multiclass' ")
 
         if self.delete_bakground:
             sample[0][~mask] = (sample[0][~mask]).float().mean().to(dtype=sample[0].dtype)
