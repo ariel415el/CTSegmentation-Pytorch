@@ -61,13 +61,12 @@ def write_volume_slices(ct_volume, additional_volumes, dir_path):
     param additional_volumes: list of integer tensor of shape (slices, H, W) read as label maps
     """
     os.makedirs(dir_path, exist_ok=True)
-    image_volumes = [overlay(ct_volume, None)]
-    for label_volume in additional_volumes:
-        image_volumes.append(overlay(ct_volume, label_volume))
-
-    img_volume = torch.cat(image_volumes, dim=-1)
-    for s in range(ct_volume.shape[-3]):
-        save_image(img_volume[s].float(), f"{dir_path}/slice-{s}.png", normalize=True)
+    for s in range(ct_volume.shape[0]):
+        image_strip = [overlay(ct_volume[s].unsqueeze(0), None)]
+        for label_volume in additional_volumes:
+            image_strip.append(overlay(ct_volume[s].unsqueeze(0), label_volume[s].unsqueeze(0)))
+        image_strip = torch.cat(image_strip, dim=-1)
+        save_image(image_strip.float(), f"{dir_path}/slice-{s}.png", normalize=True)
 
 
 def visualize_augmentations(data_paths, outputs_dir):
