@@ -12,13 +12,14 @@ from metrics import VolumeLoss
 from models import get_model
 
 
-def test(model_dir, ckpt_name='best', dump_debug_images=False):
+def test(train_data_root, model_dir, ckpt_name='best', dump_debug_images=False):
     """
     Test the model in a checkpoint on the entire dataset.
     """
     ckpt = torch.load(f'{model_dir}/{ckpt_name}.pth')
 
     config = ExperimentConfigs(**json.load(open(f"{model_dir}/exp_configs.json")))
+    config.data_path = train_data_root
 
     # get dataloaders
     config.batch_size = 1
@@ -40,8 +41,9 @@ def test(model_dir, ckpt_name='best', dump_debug_images=False):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Preprocess Lits2017 dataset')
     parser.add_argument('model_dir')
+    parser.add_argument('train_data_root')
     parser.add_argument('--checkpoint_name', default='best')
     parser.add_argument('--debug', action='store_true')
     args = parser.parse_args()
 
-    test(args.model_dir, args.checkpoint_name, dump_debug_images=args.debug)
+    test(args.train_data_root, args.model_dir, args.checkpoint_name, dump_debug_images=args.debug)
