@@ -1,5 +1,8 @@
 # MedicalImageSegmentation-Pytorch
-Compare methods of segmenting volumatric CT data of liver tumors
+Tumor segmenting volumatric CT data of liver tumors
+
+A visualization of input, end2end prediction of the pretrained model and Ground truth of a sampple from LiTS2017
+![](readme_images/LiTS2017-volume51-slice-133.png)
 
 # Steps for training/testing pretrained models on LiTS2017
 This repo segments CT in two steps:

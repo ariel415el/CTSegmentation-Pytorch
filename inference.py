@@ -105,7 +105,7 @@ class OneStepsSegmentor:
         return multiclass_mask
 
 
-def inference(ct_path, gt_path, liver_localization_model_dir, multiclass_segmentation_model_dir,  normalized_mms=None, liver_crop_padding=(3, 20,20)):
+def inference(ct_path, gt_path, liver_localization_model_dir, multiclass_segmentation_model_dir,  normalized_mms=None, liver_crop_padding=(3, 20,20), dump_debug_images=False):
     with torch.no_grad():
         outputs_dir = os.path.join(os.path.dirname(ct_path), 'end2end_prediction')
         os.makedirs(outputs_dir, exist_ok=True)
@@ -163,8 +163,9 @@ def inference(ct_path, gt_path, liver_localization_model_dir, multiclass_segment
                 tumor_recalls.append(tumor_recall)
 
                 # dump debug images
-                ct_volume = torch.from_numpy(np.clip(ct_volume, -100, 400).astype(float))
-                write_volume_slices(ct_volume, [final_mask, gt_volume], os.path.join(outputs_dir, f"{os.path.splitext(fname)[0]}_{liver_score.item():.2f}_{tumor_score.item():.2f}"))
+                if dump_debug_images:
+                    ct_volume = torch.from_numpy(np.clip(ct_volume, -100, 400).astype(float))
+                    write_volume_slices(ct_volume, [final_mask, gt_volume], os.path.join(outputs_dir, f"{os.path.splitext(fname)[0]}_{liver_score.item():.2f}_{tumor_score.item():.2f}"))
 
                 print(f"AVG Dice per case: Liver: {np.mean(liver_dice_scores)}, Tumor: {np.mean(tumor_dice_scores)}, Tumor-Recall: {np.mean(tumor_recalls)}")
 
@@ -176,6 +177,7 @@ if __name__ == '__main__':
     parser.add_argument('--gt_dir', default="", help='If GT is not specified no Dice score is computed')
     parser.add_argument('--localization_model_dir', default='trained_models/liver_localization/VGGUNet_Aug_Loss(0.0Dice+0.0WCE+1.0CE)_V-A')
     parser.add_argument('--segmentation_model_dir', default='trained_models/multiclass_segmentation/VGGUNet2_5D_Aug_FNE-0.5_Loss(0.0Dice+0.0WCE+1.0CE)_V-A')
+    parser.add_argument('--debug', action='store_true')
     args = parser.parse_args()
 
-    inference(args.ct_dir, args.gt_dir, args.localization_model_dir, args.segmentation_model_dir)
+    inference(args.ct_dir, args.gt_dir, args.localization_model_dir, args.segmentation_model_dir, dump_debug_images=args.debug)
