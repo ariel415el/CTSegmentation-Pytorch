@@ -51,7 +51,7 @@ def overlay(ct_volume, label_volume, alpha=0.3):
             alpha * label_color_volume + (1 - alpha) * overlayed,
             overlayed
         )
-    overlayed = overlayed.permute(0, 3, 1, 2)
+    overlayed = overlayed.permute(0, 3, 1, 2).to(torch.uint8)
     return overlayed
 
 
@@ -67,7 +67,7 @@ def write_volume_slices(ct_volume, additional_volumes, dir_path):
 
     img_volume = torch.cat(image_volumes, dim=-1)
     for s in range(ct_volume.shape[-3]):
-        save_image(img_volume[s], f"{dir_path}/slice-{s}.png", normalize=True)
+        save_image(img_volume[s].float(), f"{dir_path}/slice-{s}.png", normalize=True)
 
 
 def visualize_augmentations(data_paths, outputs_dir):

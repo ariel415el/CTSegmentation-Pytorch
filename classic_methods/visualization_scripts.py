@@ -56,7 +56,7 @@ def analyze_prediction_process(data_path, case, axis_slice, t, output_dir):
     os.makedirs(output_dir, exist_ok=True)
     ct_volume, gt_volume = read_case(data_path, case, axis_slice)
     ct_volume, gt_volume = focus_on_liver(ct_volume, gt_volume)
-    overlayed = overlay(torch.from_numpy(ct_volume), torch.from_numpy(gt_volume)).numpy().transpose(0,2,3,1).astype(np.uint8)
+    overlayed = overlay(torch.from_numpy(ct_volume), torch.from_numpy(gt_volume)).numpy().transpose(0,2,3,1)
     for axis_slice in range(ct_volume.shape[0]):
         ct = ct_volume[axis_slice]
         gt = gt_volume[axis_slice]

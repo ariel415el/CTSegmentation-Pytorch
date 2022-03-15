@@ -7,4 +7,5 @@ visualize_augmentations
 *train_dir*/
 test/
 PRETRAINED
+trained_models/
 /cluster_training*

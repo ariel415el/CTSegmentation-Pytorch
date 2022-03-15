@@ -107,7 +107,6 @@ class OneStepsSegmentor:
 
 def inference(ct_path, gt_path, liver_localization_model_dir, multiclass_segmentation_model_dir,  normalized_mms=None, liver_crop_padding=(3, 20,20)):
     with torch.no_grad():
-        
         outputs_dir = os.path.join(os.path.dirname(ct_path), 'end2end_prediction')
         os.makedirs(outputs_dir, exist_ok=True)
 
