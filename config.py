@@ -37,6 +37,7 @@ class ExperimentConfigs:
     eval_freq: int = 1000
 
     train_tag: str = ""
+    n_classes: int = 3
 
     def __post_init__(self):
         if self.data_mode in ['tumor', 'liver']:
@@ -55,7 +56,7 @@ class ExperimentConfigs:
 
     def get_train_configs(self):
         return TrainConfigs(self.device, self.decay_steps, self.decay_factor, self.dice_loss_weight,
-                            self.wce_loss_weight, self.ce_loss_weight, self.ckpt_frequency, self.train_steps, self.eval_freq)
+                            self.wce_loss_weight, self.ce_loss_weight, self.ckpt_frequency, self.train_steps, self.eval_freq, self.n_classes)
 
     def __str__(self):
         return f"{self.model_name}" \
@@ -112,4 +113,5 @@ class TrainConfigs:
     ckpt_frequency: int
     train_steps: int
     eval_freq: int
+    n_classes: int
 

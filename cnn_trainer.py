@@ -14,7 +14,8 @@ from metrics import VolumeLoss
 
 TRAIN_LOSS_TAG = 'Train-Loss'
 VALIDATION_LOSS_TAG = 'Val-Loss'
-VALIDATION_SCORE_TAG = 'Dice-class-1'
+VALIDATION_SCORE_TAG_1 = 'Dice-class-1'
+VALIDATION_SCORE_TAG_2 = 'Dice-class-2'
 
 
 def iterate_dataloader(dataloader):
@@ -70,7 +71,8 @@ class CNNTrainer:
                 self.plot()
 
                 self.save_checkpoint(model, name='latest')
-                if self.is_last_smoothed_score_best(VALIDATION_SCORE_TAG):
+                measure_progress_key = VALIDATION_SCORE_TAG_2 if self.config.n_classes == 3 else VALIDATION_SCORE_TAG_1
+                if self.is_last_smoothed_score_best(measure_progress_key):
                     self.save_checkpoint(model, name='best')
 
             if self.step % self.config.ckpt_frequency == 0:
@@ -102,7 +104,8 @@ class CNNTrainer:
             self.plot_data_means[k].append(np.mean(self.plot_data[k][-self.smooth_score_size:]))
 
     def plot(self):
-        metric_groups = [[TRAIN_LOSS_TAG, VALIDATION_LOSS_TAG], [VALIDATION_SCORE_TAG, 'Dice-class-2']]
+        metric_groups = [[TRAIN_LOSS_TAG, VALIDATION_LOSS_TAG]]
+        metric_groups.append([VALIDATION_SCORE_TAG_1, VALIDATION_SCORE_TAG_2] if self.config.n_classes == 3 else [VALIDATION_SCORE_TAG_1])
         for metric_group in metric_groups:
             nvalues = max([len(self.plot_data[k]) for k in metric_group])
             for k in metric_group:

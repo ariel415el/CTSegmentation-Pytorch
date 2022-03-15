@@ -40,7 +40,7 @@ def test(model_dir, ckpt_name='best', dump_debug_images=False):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Preprocess Lits2017 dataset')
     parser.add_argument('model_dir')
-    parser.add_argument('checkpoint_name', default='best')
+    parser.add_argument('--checkpoint_name', default='best')
     parser.add_argument('--debug', action='store_true')
     args = parser.parse_args()
 

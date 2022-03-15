@@ -68,7 +68,7 @@ and place it in the main folder
 ## Step 5 Test trained model
 Run
 ```
-pytnon3 scripts/test.py <trained model dir> <checkpoint file name> --debug
+pytnon3 scripts/test.py <trained model dir> --checkpoint_name <checkpoint file name> --debug
 ```
 This will run the trained model on the validation set compute the average dice score and dump debug images.
 

@@ -36,7 +36,7 @@ def create_dataset(data_paths, crop_padding=(3,10,10), normalize_axial_mm=None, 
     """
     processed_dir = f"LiTS2017" + (f"_C-{crop_padding}" if crop_padding is not None else "") + \
                     (f"_{normalize_axial_mm}-mm" if normalize_axial_mm is not None else "") +\
-                    (f"_Resize-{spatal_resize}" if spatal_resize != 1.0 else "")
+                    (f"_Resize-{str(spatal_resize).replace('.', '_')}" if spatal_resize != 1.0 else "")
 
     new_ct_dir = os.path.join(processed_dir, 'ct')
     new_seg_dir = os.path.join(processed_dir, 'seg')

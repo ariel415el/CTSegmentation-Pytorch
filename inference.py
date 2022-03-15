@@ -122,7 +122,6 @@ def inference(ct_path, gt_path, liver_localization_model_dir, multiclass_segment
         for fname in os.listdir(ct_path):
             print(f"Case-{fname}")
             ct_volume, gt_volume, spacing = read_case(ct_path, gt_path, fname)
-            # gt_volume[gt_volume == 1] = 2
 
             # localize liver
             liver_input = liver_localization_transforms((ct_volume.copy(), np.ones_like(ct_volume).astype(np.uint8)))[0].unsqueeze(0).float().cuda()
@@ -177,7 +176,7 @@ if __name__ == '__main__':
     parser.add_argument('ct_dir')
     parser.add_argument('--gt_dir', default="", help='If GT is not specified no Dice score is computed')
     parser.add_argument('--localization_model_dir', default='trained_models/liver_localization/VGGUNet_Aug_Loss(0.0Dice+0.0WCE+1.0CE)_V-A')
-    parser.add_argument('--segmentation_model_dir', default='trained_models/multiclass_segmentaion/VGGUNet2_5D_Aug_FNE-0.5_Loss(0.0Dice+0.0WCE+1.0CE)_V-A')
+    parser.add_argument('--segmentation_model_dir', default='trained_models/multiclass_segmentation/VGGUNet2_5D_Aug_FNE-0.5_Loss(0.0Dice+0.0WCE+1.0CE)_V-A')
     args = parser.parse_args()
 
     inference(args.ct_dir, args.gt_dir, args.localization_model_dir, args.segmentation_model_dir)
