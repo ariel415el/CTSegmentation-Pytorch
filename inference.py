@@ -84,7 +84,7 @@ class TwoStepsSegmentor:
 
         # Predict tumors
         input_ct = self.tumor_transforms((cropped_ct, np.ones_like(cropped_ct)))[0].unsqueeze(0).float().cuda()  # shape (S, 128, 128)
-        print(input_ct.shape)
+
         predicted_tumor_mask = self.tumor_model.predict_volume(input_ct)[0].argmax(0).cpu()  # shape (S, 128, 128)
 
         multiclass_mask = predicted_liver_mask
@@ -165,7 +165,7 @@ def inference(ct_path, gt_path, liver_localization_model_dir, multiclass_segment
 
                 # dump debug images
                 ct_volume = torch.from_numpy(np.clip(ct_volume, -100, 400).astype(float))
-                write_volume_slices(ct_volume, [final_mask, gt_volume], os.path.join(outputs_dir, "e2e_test", f"{os.path.splitext(fname)[0]}_{liver_score.item():.2f}_{tumor_score.item():.2f}"))
+                write_volume_slices(ct_volume, [final_mask, gt_volume], os.path.join(outputs_dir, f"{os.path.splitext(fname)[0]}_{liver_score.item():.2f}_{tumor_score.item():.2f}"))
 
                 print(f"AVG Dice per case: Liver: {np.mean(liver_dice_scores)}, Tumor: {np.mean(tumor_dice_scores)}, Tumor-Recall: {np.mean(tumor_recalls)}")
 

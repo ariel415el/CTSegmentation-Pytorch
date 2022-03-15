@@ -75,19 +75,30 @@ This will run the trained model on the validation set compute the average dice s
 ## Step 6 End to end inference
 Now that we have trained localization and segmentation models we can use them for end to end inference or testing.
 
-Run
+### Inference on test set:
 ```
 Python3 inference.py <path to ct> 
-    --ct_dir <path to gt> 
+    <path to LiTS2017 test/ct folder> 
     --localization_model_dir <path to localization model dir> 
     --segmentation_model_dir <path to segmentation model dir>
 ```
-
-This will create predicted segmentation volumes in a new directory 'end2end_prediction' alongside the ct directory.
-If GT is specified it will alsow compute end to end dice score per case and dumpy debug images
-
-The nii volumes in 'end2end_prediction' are ready to be compressed (without the folder itself) and submitted to 
+This will create predicted segmentation volumes in a new directory 'end2end_prediction' with nii volumes that are ready to 
+be compressed and submitted to 
 [LiTS2017](https://competitions.codalab.org/competitions/17094 )
+
+### End2End evaluation on validation data
+
+Running
+```
+Python3 inference.py <path to ct> 
+     <path LiTS2017 train/ct folder> 
+    --gt_dir <path LiTS2017 train/seg folder> 
+    --localization_model_dir <path to localization model dir> 
+    --segmentation_model_dir <path to segmentation model dir>
+```
+Will create end2end debug images and print the final score of inference on the validaion set
+
+# Step 6 End to end inference
 
 
 # Experiment with classical method
